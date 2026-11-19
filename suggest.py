@@ -21,9 +21,9 @@ import taste
 N = 5
 # Sonnet: Haiku answered as fast but made songs up and ignored the skip list (2026-10-17);
 # the picks are worked out before the tap, so the stronger model costs nothing there.
-MODEL = os.environ.get("DATALOGGER_SUGGEST_MODEL", "sonnet")
+MODEL = os.environ.get("NIGHTRIDER_SUGGEST_MODEL", "sonnet")
 CLAUDE = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
-WORK = os.path.expanduser("~/.cache/datalogger/work")    # run outside the project: no CLAUDE.md to read
+WORK = os.path.expanduser("~/.cache/nightrider/work")    # run outside the project: no CLAUDE.md to read
 NOTE_SECS = 20                                            # how long the screen shows what happened
 
 

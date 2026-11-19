@@ -1,6 +1,6 @@
 # Data Logger phone protocol
 
-How a phone reads data from the Pi 4 data logger (hostname `datalogger`).
+How a phone reads data from the Pi 4 data logger (hostname `nightrider`).
 Both transports serve the same data. Use Wi-Fi for bulk downloads, Bluetooth
 for live gauges and small queries when there's no Wi-Fi.
 
@@ -31,8 +31,8 @@ Samples are logged at `sample_hz` (10 Hz since 2026-10-15; 4 Hz before) while th
 
 ## Wi-Fi (HTTP, port 80)
 
-Address: `http://datalogger.local` (mDNS), or the IP from `info.ip`.
-On the Pi's own hotspot (SSID `DataLogger`) it is always `http://10.42.0.1`.
+Address: `http://nightrider.local` (mDNS), or the IP from `info.ip`.
+On the Pi's own hotspot (SSID `Nightrider`) it is always `http://10.42.0.1`.
 All responses are JSON with `Access-Control-Allow-Origin: *`.
 
 | Request | Returns |
@@ -54,7 +54,7 @@ Incremental sync: remember the last `id` you stored, then request
 
 ## Bluetooth LE (GATT)
 
-Advertises as `datalogger` (name may be shortened) with the service UUID below.
+Advertises as `nightrider` (name may be shortened) with the service UUID below.
 No pairing needed.
 
 | Characteristic | UUID | Properties |

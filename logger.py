@@ -5,8 +5,8 @@ over Wi-Fi (HTTP, web.py) and Bluetooth LE (ble.py).
     python3 logger.py --sim     # built-in DME simulator, for testing
 
 Settings come from environment variables (see the systemd unit):
-DATALOGGER_DB, DATALOGGER_HZ, DATALOGGER_HTTP_PORT, DATALOGGER_BLE (0 = off),
-DATALOGGER_GPS (serial port, default /dev/ttyS0; 0 = off).
+NIGHTRIDER_DB, NIGHTRIDER_HZ, NIGHTRIDER_HTTP_PORT, NIGHTRIDER_BLE (0 = off),
+NIGHTRIDER_GPS (serial port, default /dev/serial0; 0 = off).
 
 Each sample also gets GPS readings (lat, lon, speed_kmh, course_deg, gps_sats,
 alt_m) when there's a fix, and `gear` (0-5, gear.py) while the engine runs.
@@ -27,11 +27,11 @@ from gear import GearFinder
 from store import Store
 
 VERSION = "1.0"
-DB_PATH = os.environ.get("DATALOGGER_DB", "/var/lib/datalogger/log.db")
-SAMPLE_HZ = float(os.environ.get("DATALOGGER_HZ", "4"))   # while the engine is on
+DB_PATH = os.environ.get("NIGHTRIDER_DB", "/var/lib/nightrider/log.db")
+SAMPLE_HZ = float(os.environ.get("NIGHTRIDER_HZ", "4"))   # while the engine is on
 HEARTBEAT_SECS = 60                                         # while it's off
-HTTP_PORT = int(os.environ.get("DATALOGGER_HTTP_PORT", "80"))
-BLE_ON = os.environ.get("DATALOGGER_BLE", "1") != "0"
+HTTP_PORT = int(os.environ.get("NIGHTRIDER_HTTP_PORT", "80"))
+BLE_ON = os.environ.get("NIGHTRIDER_BLE", "1") != "0"
 STARTED = time.monotonic()      # immune to clock jumps (no RTC; NTP sets the time late)
 
 

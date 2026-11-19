@@ -7,7 +7,7 @@ After=local-fs.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/sbin/datalogger-splash
+ExecStart=/usr/local/sbin/nightrider-splash
 
 [Install]
 WantedBy=sysinit.target

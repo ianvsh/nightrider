@@ -2,12 +2,12 @@
 
 Changes go through `sudo -n nmcli` (ian has passwordless sudo). wifi-fallback
 keeps working alongside: once we're on a network it leaves it alone; if a
-connection fails it brings the DataLogger hotspot back after ~45 s.
+connection fails it brings the Nightrider hotspot back after ~45 s.
 """
 import subprocess
 
-HOTSPOT = "datalogger-hotspot"
-HOTSPOT_SSID = "DataLogger"
+HOTSPOT = "nightrider-hotspot"
+HOTSPOT_SSID = "Nightrider"
 
 
 def nmcli(*args, sudo=False, timeout=40):
@@ -114,4 +114,4 @@ def connect(ssid, password=None, profile=None):
 
 def start_hotspot():
     ok, out = nmcli("c", "up", "id", HOTSPOT, sudo=True, timeout=60)
-    return ok, "HOTSPOT ON: JOIN \"DATALOGGER\", THEN 10.42.0.1" if ok else friendly(out)
+    return ok, "HOTSPOT ON: JOIN \"NIGHTRIDER\", THEN 10.42.0.1" if ok else friendly(out)

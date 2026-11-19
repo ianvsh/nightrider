@@ -1,4 +1,4 @@
-"""Run: python3 -m unittest discover -s tests   (from ~/datalogger)"""
+"""Run: python3 -m unittest discover -s tests   (from ~/nightrider)"""
 import json
 import os
 import sys

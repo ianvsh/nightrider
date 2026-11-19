@@ -10,7 +10,7 @@
   (it used to be, once per answer: each start is a burst of Web API calls, and Spotify
   blocked Ian's app for 21 hours on 2026-11-15). Always 44.1 kHz stereo.
 - Voices (`VOICES`, picked on the AI page's voice screen, saved as "voice_name" in
-  ~/.config/datalogger/assistant.json): GERMAN (Thorsten, a German speaker given English
+  ~/.config/nightrider/assistant.json): GERMAN (Thorsten, a German speaker given English
   pronunciation = a light German accent; Ian's pick 2026-11-15), AMERICAN (LibriTTS speaker
   646), BRITISH (Alan), MID-ATLANTIC (LibriTTS speaker 842 with British "RP" pronunciation:
   between the two). All original voices - none imitates a real person. Models in
@@ -33,7 +33,7 @@ import wave
 import numpy as np
 
 MODELS = os.path.expanduser("~/.local/share/piper")
-SETTINGS = os.path.expanduser("~/.config/datalogger/assistant.json")       # shared with assistant.py
+SETTINGS = os.path.expanduser("~/.config/nightrider/assistant.json")       # shared with assistant.py
 VOICE_PCM = "voicebus"             # its own Loopback channel (/etc/asound.conf); bt.Bridge mixes it with the music
 OUT_RATE = 44100                   # what the stereo runs at: no resampling or renegotiating in bluealsa
 # name -> label, note, page ("modern" Piper neural voices / "vintage" old-school synthesis),

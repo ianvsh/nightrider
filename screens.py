@@ -17,7 +17,7 @@ import cell
 import wifi
 from pixels import OX, SCALE, AMBER, BG, DIM, FAINT, GREEN, LH, LW, RED, blink, button, inside, text, text_width
 
-CAL_FILE = os.path.expanduser("~/.config/datalogger/touch.json")
+CAL_FILE = os.path.expanduser("~/.config/nightrider/touch.json")
 FLASH = 0.15          # seconds a pressed button stays lit
 
 

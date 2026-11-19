@@ -4,17 +4,17 @@ After=network-online.target sound.target
 Wants=network-online.target
 
 [Service]
-User=ian
-Group=ian
+User=@USER@
+Group=@USER@
 SupplementaryGroups=audio
-WorkingDirectory=/home/ian
+WorkingDirectory=@HOME@
 # spotify_player is a terminal app; tmux gives it a terminal nobody has to look at.
 # See it with: tmux attach -t spotify   (detach: ctrl-b d)
 Type=forking
 # Wait for internet first: started offline, it gets stuck waiting for a login.
 ExecStartPre=/usr/local/sbin/spotify-wait-net
 TimeoutStartSec=infinity
-ExecStart=/usr/bin/tmux new-session -d -s spotify -x 120 -y 40 /home/ian/.local/bin/spotify_player
+ExecStart=/usr/bin/tmux new-session -d -s spotify -x 120 -y 40 @HOME@/.local/bin/spotify_player
 ExecStop=/usr/bin/tmux kill-session -t spotify
 Environment=TERM=xterm-256color
 Restart=always

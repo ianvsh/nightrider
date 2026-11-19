@@ -4,7 +4,7 @@ in SQLite full-text search (FTS5).
 
 Build (once, after downloading the extracts; ~20-40 min on the Pi 4):
 
-    python3 places.py build /var/lib/datalogger/osm/*.osm.pbf
+    python3 places.py build /var/lib/nightrider/osm/*.osm.pbf
     python3 places.py search "2300 se hawthorne"          # try it
     python3 places.py search "nearest costco" 45.5 -122.6
 
@@ -25,7 +25,7 @@ import time
 
 import config
 
-PLACES_DB = os.environ.get("DATALOGGER_PLACES", "/var/lib/datalogger/places.db")
+PLACES_DB = os.environ.get("NIGHTRIDER_PLACES", "/var/lib/nightrider/places.db")
 
 # One spelling per word (the short one), so typed, spoken and map forms match:
 # "Southeast 12th Avenue", "SE 12th Ave" -> "se 12th ave". Street and Saint both

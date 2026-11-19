@@ -2,7 +2,7 @@
 
 Build (once, ~30-60 min on the Pi 4; needs osmium-tool + python3-pyosmium):
 
-    python3 roadmap.py build /var/lib/datalogger/osm/*.osm.pbf
+    python3 roadmap.py build /var/lib/nightrider/osm/*.osm.pbf
 
 Extracts come from download.geofabrik.de (OR + WA so far). The build keeps
 roads (motorway..residential) and big rivers, cuts each way into short pieces
@@ -19,7 +19,7 @@ import sys
 import tempfile
 import time
 
-ROADS_DB = os.environ.get("DATALOGGER_ROADS", "/var/lib/datalogger/roads.db")
+ROADS_DB = os.environ.get("NIGHTRIDER_ROADS", "/var/lib/nightrider/roads.db")
 
 # road class: 0 = biggest. Display brightness/zoom filtering go by this.
 CLASSES = {

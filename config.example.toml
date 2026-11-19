@@ -1,4 +1,4 @@
-# Copy to ~/.config/datalogger/config.toml and edit. Every setting is optional.
+# Copy to ~/.config/nightrider/config.toml and edit. Every setting is optional.
 
 [driver]
 name = ""                 # the AI calls you this; empty = "the driver"

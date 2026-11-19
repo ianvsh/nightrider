@@ -43,9 +43,9 @@ def _device_name(path=CONFIG):
     """This Pi's Spotify Connect name: [device] name in app.toml."""
     try:
         with open(path, "rb") as f:
-            return tomllib.load(f).get("device", {}).get("name") or "datalogger"
+            return tomllib.load(f).get("device", {}).get("name") or "nightrider"
     except (OSError, tomllib.TOMLDecodeError):
-        return "datalogger"
+        return "nightrider"
 
 
 DEVICE = _device_name()
@@ -83,7 +83,7 @@ def waiting_for_login():
 
 
 def online(timeout=4):
-    """Spotify is reachable (DNS + a TCP connection). False on the DataLogger
+    """Spotify is reachable (DNS + a TCP connection). False on the Nightrider
     hotspot, or a phone hotspot that has no data yet."""
     try:
         socket.create_connection(REACH, timeout=timeout).close()
@@ -93,7 +93,7 @@ def online(timeout=4):
 
 
 def network_id():
-    """The default route as "interface:gateway", "" if there's none (the DataLogger
+    """The default route as "interface:gateway", "" if there's none (the Nightrider
     hotspot has none). Changes when the Pi moves to another network: a free check
     (/proc), so the Watchdog can look at the player as soon as that happens."""
     try:
@@ -116,7 +116,7 @@ hold_until = 0.0                   # spotify.service stopped on purpose (the AI 
 # it for every answer, plus testing) and Spotify blocked the app for 21 hours. So restarts
 # are rationed - RESTARTS_PER_HOUR, counted across processes in RESTART_FILE - and none
 # while Spotify's block lasts (a start then only makes the block longer).
-RESTART_FILE = os.path.expanduser("~/.cache/datalogger/spotify-restarts")
+RESTART_FILE = os.path.expanduser("~/.cache/nightrider/spotify-restarts")
 RESTARTS_PER_HOUR = 4
 
 
@@ -351,7 +351,7 @@ def _token():
 # ~5 h, after SUGGEST's search bursts). Calling during it can make it longer, so no call
 # goes out until it's over - in any process (the AI page's spotify tool too): the end time
 # is kept in BLOCK_FILE.
-BLOCK_FILE = os.path.expanduser("~/.cache/datalogger/spotify-blocked")
+BLOCK_FILE = os.path.expanduser("~/.cache/nightrider/spotify-blocked")
 
 
 class Blocked(RuntimeError):
@@ -521,7 +521,7 @@ class Watchdog:
     """Restarts spotify.service when the player is running but useless. It
     never recovers by itself from these (journal, 2026-10-15/16, all when
     getting in the car):
-    - started with no internet (DataLogger hotspot, or the phone's before it
+    - started with no internet (Nightrider hotspot, or the phone's before it
       has data): the token refresh fails and it waits for a login forever;
     - lost the network (home Wi-Fi -> hotspot -> phone): one reconnect try,
       then never again. The CLI still answers, with no devices, no playback;
@@ -947,7 +947,7 @@ class Player:
 
 # ---- hearts that have to wait (Spotify limiting us) ----
 
-PENDING_LIKES = os.path.expanduser("~/.config/datalogger/spotify-pending-likes.json")
+PENDING_LIKES = os.path.expanduser("~/.config/nightrider/spotify-pending-likes.json")
 
 
 def pending_likes():

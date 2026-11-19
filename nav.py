@@ -2,10 +2,10 @@
 
 - Destinations: spoken (voice.py -> Whisper) or typed (screens.Keyboard), looked
   up in places.py's index of OSM addresses / places / streets, nearest first.
-  Recent picks are kept in ~/.config/datalogger/destinations.json; places Ian
+  Recent picks are kept in ~/.config/nightrider/destinations.json; places Ian
   names himself (HOME, WORK, ...) in saved-places.json (GO > SAVED).
 - Routes: Valhalla (pyvalhalla in .venv) on tiles built from the same OSM
-  extracts (/var/lib/datalogger/valhalla, see CLAUDE.md "Routing").
+  extracts (/var/lib/nightrider/valhalla, see CLAUDE.md "Routing").
 - Guidance: the next maneuver and distance to it come from where the GPS puts us
   along the route line; more than OFF_ROUTE_M off it for a few fixes = reroute.
 
@@ -21,9 +21,9 @@ import places
 from pixels import AMBER, DIM, FAINT, GREEN, LH, LW, RED, blink, button, inside, text
 import screens
 
-VALHALLA_CONFIG = os.environ.get("DATALOGGER_VALHALLA", "/var/lib/datalogger/valhalla/valhalla.json")
-RECENT = os.path.expanduser("~/.config/datalogger/destinations.json")
-SAVED = os.path.expanduser("~/.config/datalogger/saved-places.json")
+VALHALLA_CONFIG = os.environ.get("NIGHTRIDER_VALHALLA", "/var/lib/nightrider/valhalla/valhalla.json")
+RECENT = os.path.expanduser("~/.config/nightrider/destinations.json")
+SAVED = os.path.expanduser("~/.config/nightrider/saved-places.json")
 OFF_ROUTE_M = 50                # this far from the route line ...
 OFF_ROUTE_FIXES = 4             # ... for this many fixes in a row = reroute
 REROUTE_GAP_SECS = 10

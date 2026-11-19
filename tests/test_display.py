@@ -391,7 +391,7 @@ class ApproveBridgeTest(unittest.TestCase):
                     c.close()
             threading.Thread(target=screen, daemon=True).start()
             here = os.path.join(os.path.dirname(__file__), "..")
-            env = dict(os.environ, DATALOGGER_APPROVE_SOCK=sock, HOME=d)
+            env = dict(os.environ, NIGHTRIDER_APPROVE_SOCK=sock, HOME=d)
             p = subprocess.Popen([sys.executable, os.path.join(here, "approve_mcp.py")], env=env,
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 
@@ -665,7 +665,7 @@ class TerminalTest(unittest.TestCase):
 
     def test_shell_on_the_page(self):
         import terminal
-        t = terminal.Terminal(tmux="datalogger-test-none")     # no such tmux: the plain-shell fallback
+        t = terminal.Terminal(tmux="nightrider-test-none")     # no such tmux: the plain-shell fallback
         ui = display.UI(FakeFeed(False), term=t)
         ui.goto("terminal")
         try:

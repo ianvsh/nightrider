@@ -32,13 +32,13 @@ VOCAB = (f"Hey Claude, about the {config.CAR}: the last drive, RPM, coolant, air
          "airflow, throttle, dwell, wideband, the data logger, the Pi. Spotify: play, pause, "
          "skip, volume, playlist.")
 HERE = os.path.dirname(os.path.abspath(__file__))
-SOCK = os.path.expanduser("~/.cache/datalogger/approve.sock")
+SOCK = os.path.expanduser("~/.cache/nightrider/approve.sock")
 VOICE_PROMPT = """
 
 VOICE MODE IS ON: your reply is read aloud in the car while the driver drives. Answer in one \
 to three short spoken sentences: plain words, no lists, headings, markdown, symbols or \
 links. Lead with the answer itself. Offer detail only if asked."""
-WORK = os.path.expanduser("~/.cache/datalogger/work")      # the only place Claude's Bash may write
+WORK = os.path.expanduser("~/.cache/nightrider/work")      # the only place Claude's Bash may write
 APPROVE_SECS = 90
 
 # Bash runs in Claude Code's sandbox (bubblewrap): it reads anything but writes
@@ -74,7 +74,7 @@ music_taste remember (name the song/artist/genre; use status to see what's playi
 Kind of Blue."). Bluetooth devices (pair, unpair, connect, the keyboard, the \
 stereo): use the `bluetooth` tool, no prompts; for pairing tell the driver to put the device in \
 pairing mode, then call pair. Bash runs in a sandbox: \
-it can read anything and write only in ~/.cache/datalogger/work, with no prompts, so just do \
+it can read anything and write only in ~/.cache/nightrider/work, with no prompts, so just do \
 your analysis there. Anything beyond that (sudo, services, packages, network, writing other \
 files, file edits) pops up ALLOW/DENY on the screen, so only do it when the driver asked for a change. If they deny something, \
 accept it and don't retry it. Never delete or rewrite the log database. The car may have no \
@@ -261,7 +261,7 @@ class Assistant:
         session_id, voice_on = key
         mcp = {"mcpServers": {"screen": {"type": "stdio", "command": "/usr/bin/python3",
                                          "args": [os.path.join(HERE, "approve_mcp.py")],
-                                         "env": {"DATALOGGER_APPROVE_SOCK": SOCK}}}}
+                                         "env": {"NIGHTRIDER_APPROVE_SOCK": SOCK}}}}
         os.makedirs(WORK, exist_ok=True)
         for f in os.listdir(WORK):                       # don't let old data pile up on the SD card
             try:

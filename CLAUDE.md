@@ -9,18 +9,18 @@ is the API spec, so keep it in sync with any API change. Install and setup:
 
 ## Code
 
-- `logger.py` - main loop: samples `dme.DME().snapshot()` at DATALOGGER_HZ (10) while the engine
+- `logger.py` - main loop: samples `dme.DME().snapshot()` at NIGHTRIDER_HZ (10) while the engine
   is on (plus `pi_temp_c`), one heartbeat a minute while off, stores to SQLite and
   hands each sample to listeners (BLE live notify). Settings are env vars in the
   systemd unit. `python3 logger.py --sim` runs against the DME simulator.
-- `gps.py` - SIM7670G GNSS on /dev/ttyS0 (`DATALOGGER_GPS`, 0 = off): turns
+- `gps.py` - SIM7670G GNSS on /dev/serial0 (`NIGHTRIDER_GPS`, 0 = off): turns
   GNSS on, reads NMEA (RMC + GGA) at 1 Hz (the module's max), extrapolates speed
   between fixes (`speed_at`). The logger owns the port, so AT commands for the
   cellular side will need to share it later.
 - `gear.py` - gear from RPM / speed (`GearFinder`): nearest gear within 12%,
   2 samples to change, 1 s hold through shifts, 0 = no gear (<5 km/h, <1000 rpm,
   no match). Learns ratios slowly while cruising, saves at most every 5 min.
-- `store.py` - SQLite (`/var/lib/datalogger/log.db`, WAL, commits every 5 s).
+- `store.py` - SQLite (`/var/lib/nightrider/log.db`, WAL, commits every 5 s).
   Sessions = drives, split after 30 s without engine data; each keeps `km` driven (odometer.py).
 - `web.py` - HTTP API on port 80 + serves `app/` (stdlib only).
 - `app/` - the phone app: plain HTML/CSS/JS, no build step and no CDN (the car
@@ -46,7 +46,7 @@ is the API spec, so keep it in sync with any API change. Install and setup:
   30 s). Taps count on finger-down;
   pages draw from `TOP` (y 19) down.
 - `terminal.py` - TERM page: attaches to the `term` tmux session of
-  `datalogger-term.service` (`tmux -L term attach -t term`, falls back to a
+  `nightrider-term.service` (`tmux -L term attach -t term`, falls back to a
   plain `bash -l` if that's not running), so the shell (and Claude Code in it)
   survives display restarts. Underneath: `setsid -c` on a pty,
   TERM=linux, 66x26), emulated by pyte (in `.venv`), drawn in the pixel font
@@ -59,7 +59,7 @@ is the API spec, so keep it in sync with any API change. Install and setup:
 - `pixels.py` - shared retro drawing: colours, 5x7 font (upper + lower case),
   buttons, 240x160 -> 480x320 scale-up.
 - `screens.py` - full-screen touch screens from the Status page: touch
-  calibration (4 crosses, affine fit, saved to `~/.config/datalogger/touch.json`;
+  calibration (4 crosses, affine fit, saved to `~/.config/nightrider/touch.json`;
   runs the first time Status is tapped), Wi-Fi list, big-key keyboard (password
   shown as typed, on purpose). `wifi.py` - nmcli wrapper (`sudo -n nmcli`). Hold the SHUT DOWN box (SET page) 4 s = clean shutdown (`sudo -n systemctl poweroff`;
   only that box since 2026-10-15 - long presses elsewhere fired it by accident, `hold_progress`);
@@ -100,7 +100,7 @@ is the API spec, so keep it in sync with any API change. Install and setup:
   Claude picking ~25 similar songs -> `play_songs` (Web API with spotify_player's
   token). The CLI's queue is stale; read it from the Web API. Pixel font shows accented letters as plain ones (`plain_char`).
 - Music taste (`taste.py`): Claude's `music_taste` tool (read / remember / forget,
-  no approval). Read = saved likes/dislikes/notes (`~/.config/datalogger/music-taste.json`,
+  no approval). Read = saved likes/dislikes/notes (`~/.config/nightrider/music-taste.json`,
   Claude saves what the driver says), hearts (`music-likes.jsonl`, screen or Claude; the
   strongest signal), played-through songs (`music-plays.jsonl`: still going at 90% or
   in the last 30 s when the track changed), early skips (`music-skips.jsonl`: NEXT before 60% of a
@@ -114,17 +114,17 @@ is the API spec, so keep it in sync with any API change. Install and setup:
   `.venv`, loaded at start-up), runs `claude -p` (stream-json, `--resume` to keep
   the chat) with cwd here. No prompts for reading/analysis: Bash runs in
   Claude Code's sandbox (`SETTINGS`; needs bubblewrap + socat) - reads anything, writes only
-  `~/.cache/datalogger/work` (files older than a day are cleared), no network, never asks.
+  `~/.cache/nightrider/work` (files older than a day are cleared), no network, never asks.
   The sandbox can't reach 127.0.0.1, so engine data comes from the `api` tool in
   `approve_mcp.py` (GET /api/..., saved to the work folder for Python). Leaving the sandbox
   (sudo, writes elsewhere), Edit/Write and anything not in `ALLOWED` goes to `approve_mcp.py` (`--permission-prompt-tool`), which
-  asks the display over `~/.cache/datalogger/approve.sock`; the screen shows
+  asks the display over `~/.cache/nightrider/approve.sock`; the screen shows
   ALLOW / DENY on any page, no tap in 90 s = deny. Raw permission requests are
-  logged to `~/.cache/datalogger/approve.log`. Design rule:
+  logged to `~/.cache/nightrider/approve.log`. Design rule:
   no system change without a tap. Needs a Claude login (`claude auth login`) or an API key.
 - `bt.py` - AUDIO setting (SET page, AUDIO button -> `screens.AudioScreen`): AUX
   (headphone jack) or BLUETOOTH (car stereo, A2DP via bluez-alsa). Settings in
-  `~/.config/datalogger/audio.json`. Pairing over BlueZ D-Bus with our own agent
+  `~/.config/nightrider/audio.json`. Pairing over BlueZ D-Bus with our own agent
   (accepts, legacy PIN 0000; adapter pairable only while pairing). `Router` (thread in
   the display) reconnects the stereo every 20 s while it's away and routes to
   Bluetooth only while it is connected, by pointing its `Bridge` (copies the `mixbus`
@@ -150,20 +150,20 @@ is the API spec, so keep it in sync with any API change. Install and setup:
 
 ## System
 
-- `datalogger.service` - runs the logger as `ian`. Logs: `journalctl -u datalogger`.
-  Restart: `sudo systemctl restart datalogger`.
-- `datalogger-display.service` - runs `display.py` with `.venv/bin/python`
+- Installed by `install.sh` (templates `@USER@`/`@HOME@` in `system/*.service`); `setup.sh`
+  = logins, `system/setup-maps.sh` = offline maps, `system/migrate.sh` = copy from an old Pi.
+- `nightrider.service` - runs the logger as the install user. Logs: `journalctl -u nightrider`.
+  Restart: `sudo systemctl restart nightrider`.
+- `nightrider-display.service` - runs `display.py` with `.venv/bin/python`
   (system packages + faster-whisper); waits quietly if no screen.
-  Driver: `dtoverlay=piscreen,speed=16000000,rotate=90` + `dtparam=spi=on` in
-  `/boot/firmware/config.txt` (original saved as `config.txt.before-lcd`).
-  The screen covers the whole GPIO header.
-- `datalogger-term.service` (source `system/`, config `system/tmux-term.conf`) -
+  5" DSI touchscreen found by `display_auto_detect=1` (stock config.txt).
+- `nightrider-term.service` (source `system/`, config `system/tmux-term.conf`) -
   tmux server `-L term`, session `term`, 66x26, no status bar; holds the TERM
   page's shell outside the display's cgroup. Own socket on purpose: the default
   tmux server belongs to spotify.service and dies with its watchdog restarts.
   `exit` in the last shell ends it; Restart=always brings a fresh one in 2 s.
   No prefix key (ctrl-b goes to Claude); scroll by finger drag. A reboot still ends it.
-  Tests must not attach to it: `Terminal(tmux="datalogger-test-none")`.
+  Tests must not attach to it: `Terminal(tmux="nightrider-test-none")`.
 - `spotify.service` - `~/.local/bin/spotify_player` 0.25.1 (prebuilt aarch64
   release; no daemon build, so it runs in a detached tmux session: `tmux attach
   -t spotify`, detach ctrl-b d). Spotify Connect device (name in app.toml), plays through the
@@ -175,14 +175,14 @@ is the API spec, so keep it in sync with any API change. Install and setup:
   so "activating" = waiting for internet. Re-login (headless): stop the service, run it in tmux, open the printed
   URL on a phone, approve, then `curl` the `127.0.0.1:8989/login?code=...` address
   the phone fails to load. Needs internet (car: phone hotspot).
-- `bluealsa.service` (bluez-alsa-utils): drop-in `system/bluealsa-datalogger.conf`
+- `bluealsa.service` (bluez-alsa-utils): drop-in `system/bluealsa-nightrider.conf`
   limits it to A2DP source (the Pi sends audio, never receives) and asks for 44.1 kHz
   (`--a2dp-force-audio-cd`). Some stereos reconnect at
   16 kHz SBC (sounded low-res), so `bt.fix_rate` checks and corrects that live.
 - `wifi-fallback.service` (`/usr/local/sbin/wifi-fallback`, source in `system/`):
   joins a saved network (NetworkManager), else starts the hotspot
-  `datalogger-hotspot` (SSID `DataLogger`, Pi is 10.42.0.1). Retries saved
-  networks every 10 min while no phone is on the hotspot. Add networks with
+  `nightrider-hotspot` (SSID `Nightrider`, Pi is 10.42.0.1). Retries saved
+  networks every 30 min while no phone is on the hotspot. Add networks with
   `sudo nmcli dev wifi connect <SSID> password <pw>`.
 - Car audio: the Pi 4 headphone jack is PWM and picks up ground-loop/alternator
   noise once wired into the car (heard 2026-10-15; power was fine, throttled=0x0).

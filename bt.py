@@ -36,13 +36,13 @@ from gi.repository import GLib
 import cell
 import spotify
 
-SETTINGS = os.path.expanduser("~/.config/datalogger/audio.json")
+SETTINGS = os.path.expanduser("~/.config/nightrider/audio.json")
 ASOUNDRC = os.path.expanduser("~/.asoundrc")      # the old way to route (pointed "default" at tap_bt): removed
 OUTPUTS = {"bluetooth": "tap_bt", "aux": "tap"}     # /etc/asound.conf PCM the Bridge plays to, per route
 MIX_CAPTURE = "hw:Loopback,1,1"                     # Spotify's channel ("default" = hw:Loopback,0,1)
 VOICE_CAPTURE = "hw:Loopback,1,2"                   # the voice's channel ("voicebus" = hw:Loopback,0,2)
 BLUEZ = "org.bluez"
-AGENT = "/datalogger/agent"
+AGENT = "/nightrider/agent"
 A2DP_SINK = "0000110b-0000-1000-8000-00805f9b34fb"
 SCAN_SECS = 12
 RETRY = 20            # seconds between tries to reconnect the stereo

@@ -5,7 +5,7 @@ gear has its own "RPM per km/h". The starting values below are estimates
 (944-type 5-speed ratios 3.50 / 2.06 / 1.40 / 1.03 / 0.83, final drive 3.89,
 195/65 R15 tyres) - not checked against Ian's car. The finder nudges each gear's
 value towards what it sees while cruising steadily and saves what it learned to
-~/.config/datalogger/gears.json (rarely: the SD card).
+~/.config/nightrider/gears.json (rarely: the SD card).
 
 Gear 0 = not in a gear: stopped, crawling, clutch in, coasting in neutral or
 mid-shift.
@@ -21,7 +21,7 @@ import sys
 import time
 
 ESTIMATE = {1: 116.3, 2: 68.4, 3: 46.5, 4: 34.4, 5: 27.6}   # RPM per km/h
-PATH = os.path.expanduser("~/.config/datalogger/gears.json")
+PATH = os.path.expanduser("~/.config/nightrider/gears.json")
 MIN_KMH = 5               # slower than this: gear 0 (GPS speed is too rough)
 MIN_RPM = 1000            # under this while moving = clutch in / neutral
 MAX_OFF = 0.12            # a gear matches within 12% (also at most half way to the next)

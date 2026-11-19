@@ -1,7 +1,7 @@
 #!/bin/sh
 # spotify.service ExecStartPre: hold off starting spotify_player until Spotify
 # is reachable. Started offline, it can't refresh its token and waits for an
-# interactive login forever (seen 2026-10-16 on the DataLogger hotspot).
+# interactive login forever (seen 2026-10-16 on the Nightrider hotspot).
 # Checks every second, so the player starts as soon as the phone hotspot has data.
 until timeout 4 bash -c '</dev/tcp/accounts.spotify.com/443' 2>/dev/null; do
     sleep 1

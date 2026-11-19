@@ -84,7 +84,7 @@ def make_handler(logger):
                                      min(_int(q, "limit", 500),
                                          CSV_MAX_LIMIT if csv_out else MAX_LIMIT))
                 if csv_out:
-                    name = f"drive-{session}.csv" if session else "datalogger.csv"
+                    name = f"drive-{session}.csv" if session else "nightrider.csv"
                     extra = {"Content-Disposition": f'attachment; filename="{name}"'} \
                         if "download" in q else {}
                     self._send(200, to_csv(rows), "text/csv", extra)

@@ -57,7 +57,7 @@ WIDEBANDS = {
     "plx": lambda v: (2.0 * v + 10.0, (2.0 * v + 10.0) / 14.68),
     "zeitronix": lambda v: (2.0 * v + 9.6, (2.0 * v + 9.6) / 14.68),
 }
-WIDEBAND = os.environ.get("GOLDY_WIDEBAND", "")   # "" = no wideband fitted
+WIDEBAND = os.environ.get("NIGHTRIDER_WIDEBAND", os.environ.get("GOLDY_WIDEBAND", ""))   # "" = no wideband fitted
 
 
 def _num(p):

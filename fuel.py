@@ -26,7 +26,7 @@ import os
 import threading
 import time
 
-FILE = os.path.expanduser("~/.config/datalogger/fuel.json")
+FILE = os.path.expanduser("~/.config/nightrider/fuel.json")
 STOICH = 14.7
 GRAMS_PER_GALLON = 745.0 * 3.785        # petrol ~745 g/L
 KM_PER_MILE = 1.609344

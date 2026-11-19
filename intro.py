@@ -83,7 +83,7 @@ def still():
 
 render = still                            # (display.py --png)
 
-SPLASH = os.path.expanduser("~/.cache/datalogger/splash.rgb565")
+SPLASH = os.path.expanduser("~/.cache/nightrider/splash.rgb565")
 
 
 def save_splash(path=SPLASH, panel=None):

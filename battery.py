@@ -28,8 +28,8 @@ import sys
 import threading
 import time
 
-DB_PATH = os.environ.get("DATALOGGER_DB", "/var/lib/datalogger/log.db")
-FILE = os.path.expanduser("~/.config/datalogger/battery.json")
+DB_PATH = os.environ.get("NIGHTRIDER_DB", "/var/lib/nightrider/log.db")
+FILE = os.path.expanduser("~/.config/nightrider/battery.json")
 
 DEFAULTS = {
     "capacity_ah": 30.0,     # not published: estimated from the weight (see above)

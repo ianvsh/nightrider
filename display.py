@@ -1,6 +1,6 @@
 """Shows the logger's data on the 5" DSI touchscreen (800x480, capacitive ft5x06).
 
-Runs as its own service (datalogger-display.service) and reads the logger's HTTP
+Runs as its own service (nightrider-display.service) and reads the logger's HTTP
 API on this Pi, so a screen problem can never stop logging. A row of tabs is
 always along the top: DRIVE (gauges; tap the page or DRIVE again for the other
 readings), MUSIC (spotify.py), AI (assistant.py), SET (Wi-Fi
@@ -13,8 +13,8 @@ Look: early-80s vector/CRT ("Escape from New York"). Everything is drawn at
     python3 display.py                          # draw on the LCD
     python3 display.py --png out.png [page]     # render one frame to a file (testing)
 
-Settings (env vars): DATALOGGER_URL (default http://127.0.0.1),
-DATALOGGER_DISPLAY_F=1 for °F, DATALOGGER_DISPLAY_MPH=0 for km/h.
+Settings (env vars): NIGHTRIDER_URL (default http://127.0.0.1),
+NIGHTRIDER_DISPLAY_F=1 for °F, NIGHTRIDER_DISPLAY_MPH=0 for km/h.
 """
 import collections
 import getpass
@@ -47,9 +47,9 @@ import wifi
 from pixels import (AMBER, BG, DIM, FAINT, GREEN, H, LH, LW, RED, W,  # noqa: F401
                     GLYPHS, SCALE, blink, button, inside, overlay, text, text_width, to_panel)
 
-API = os.environ.get("DATALOGGER_URL", "http://127.0.0.1")
-FAHRENHEIT = os.environ.get("DATALOGGER_DISPLAY_F", "0") == "1"
-MPH = os.environ.get("DATALOGGER_DISPLAY_MPH", "1") == "1"
+API = os.environ.get("NIGHTRIDER_URL", "http://127.0.0.1")
+FAHRENHEIT = os.environ.get("NIGHTRIDER_DISPLAY_F", "0") == "1"
+MPH = os.environ.get("NIGHTRIDER_DISPLAY_MPH", "1") == "1"
 FPS = 4                           # pages that only change now and then
 LIVE_FPS = 15                     # gauges and map (the logger samples at 10 Hz, GPS at 1 Hz)
 LIVE_PAGES = {"gauges", "more", "map"}
@@ -2225,7 +2225,7 @@ def main():
                 if shutdown(log):
                     while True:            # systemd stops us from here
                         time.sleep(60)
-                fb.show(render_shutdown(message=("SHUTDOWN FAILED", "SEE JOURNALCTL\n-U DATALOGGER-DISPLAY")))
+                fb.show(render_shutdown(message=("SHUTDOWN FAILED", "SEE JOURNALCTL\n-U NIGHTRIDER-DISPLAY")))
                 time.sleep(5)
                 while touch.poll() is not None:     # wait for the finger to lift
                     time.sleep(0.1)

@@ -10,7 +10,7 @@ Sources:
   marked "suggested", so how the picks went feeds the next ones,
 - Spotify's own view: top artists/tracks, recently liked songs (cached in
   SPOTIFY_CACHE for a day so it still works with no internet in the car).
-All small files in ~/.config/datalogger; written rarely (SD card)."""
+All small files in ~/.config/nightrider; written rarely (SD card)."""
 
 import json
 import os
@@ -18,7 +18,7 @@ import time
 
 import config
 
-DIR = os.environ.get("DATALOGGER_CONFIG", os.path.expanduser("~/.config/datalogger"))
+DIR = os.environ.get("NIGHTRIDER_CONFIG", os.path.expanduser("~/.config/nightrider"))
 NOTES = os.path.join(DIR, "music-taste.json")
 SKIPS = os.path.join(DIR, "music-skips.jsonl")
 LIKES = os.path.join(DIR, "music-likes.jsonl")

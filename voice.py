@@ -22,11 +22,11 @@ old "3x louder than the background" test never heard Ian. Instead:
   base.en at NOISY_SNR_DB and up, small.en below. Broadband loudness is no
   guide: parked with the ignition on, the background was RMS 1650 of 100/200 Hz
   hum, yet Ian's voice stood 12 dB clear and base.en got it right.
-- The last KEEP recordings are saved as WAV in ~/.cache/datalogger/recordings
+- The last KEEP recordings are saved as WAV in ~/.cache/nightrider/recordings
   with the noise level in the name, so we can see what the mic heard.
 
-Settings: DATALOGGER_MIC (ALSA device), DATALOGGER_MIC_GAIN (0-16, default 8),
-DATALOGGER_WHISPER (quiet model, default base.en), DATALOGGER_WHISPER_NOISY
+Settings: NIGHTRIDER_MIC (ALSA device), NIGHTRIDER_MIC_GAIN (0-16, default 8),
+NIGHTRIDER_WHISPER (quiet model, default base.en), NIGHTRIDER_WHISPER_NOISY
 (engine-on model, default small.en).
 """
 import glob
@@ -39,14 +39,14 @@ import wave
 
 import numpy as np
 
-MIC = os.environ.get("DATALOGGER_MIC", "plughw:CARD=Device,DEV=0")   # the USB PnP mic
-MIC_GAIN = int(os.environ.get("DATALOGGER_MIC_GAIN", "8"))           # of 16 (0-23.8 dB)
-WHISPER_MODEL = os.environ.get("DATALOGGER_WHISPER", "base.en")
-NOISY_MODEL = os.environ.get("DATALOGGER_WHISPER_NOISY", "small.en")
+MIC = os.environ.get("NIGHTRIDER_MIC", "plughw:CARD=Device,DEV=0")   # the USB PnP mic
+MIC_GAIN = int(os.environ.get("NIGHTRIDER_MIC_GAIN", "8"))           # of 16 (0-23.8 dB)
+WHISPER_MODEL = os.environ.get("NIGHTRIDER_WHISPER", "base.en")
+NOISY_MODEL = os.environ.get("NIGHTRIDER_WHISPER_NOISY", "small.en")
 NOISY_SNR_DB = 11.0                # voice-band SNR below this: NOISY_MODEL (sim: base.en fine >=11, garbled at 9)
 RATE = 16000
 CHUNK = RATE // 10                 # 0.1 s
-RECORDINGS = os.path.expanduser("~/.cache/datalogger/recordings")
+RECORDINGS = os.path.expanduser("~/.cache/nightrider/recordings")
 KEEP = 10
 
 LEARN_CHUNKS = 5                   # first 0.5 s: learn the background

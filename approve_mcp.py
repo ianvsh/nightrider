@@ -16,7 +16,7 @@
   can pair and unpair by voice.
 
 Stdlib only; speaks newline-delimited JSON-RPC on stdin/stdout. Logs go to
-stderr and (raw requests, for checking the wire format) ~/.cache/datalogger/approve.log.
+stderr and (raw requests, for checking the wire format) ~/.cache/nightrider/approve.log.
 """
 import json
 import os
@@ -31,10 +31,10 @@ import btctl  # noqa: E402
 import spotify  # noqa: E402
 import taste  # noqa: E402
 
-SOCK = os.environ.get("DATALOGGER_APPROVE_SOCK", os.path.expanduser("~/.cache/datalogger/approve.sock"))
-LOG = os.path.expanduser("~/.cache/datalogger/approve.log")
-WORK = os.environ.get("DATALOGGER_WORK", os.path.expanduser("~/.cache/datalogger/work"))
-API = os.environ.get("DATALOGGER_API", "http://127.0.0.1")
+SOCK = os.environ.get("NIGHTRIDER_APPROVE_SOCK", os.path.expanduser("~/.cache/nightrider/approve.sock"))
+LOG = os.path.expanduser("~/.cache/nightrider/approve.log")
+WORK = os.environ.get("NIGHTRIDER_WORK", os.path.expanduser("~/.cache/nightrider/work"))
+API = os.environ.get("NIGHTRIDER_API", "http://127.0.0.1")
 APPROVE = {
     "name": "approve",
     "description": "Asks the driver to approve or deny a tool call on the car's touchscreen.",
@@ -242,7 +242,7 @@ def main():
         if method == "initialize":
             reply(msg_id, {"protocolVersion": params.get("protocolVersion", "2025-06-18"),
                            "capabilities": {"tools": {}},
-                           "serverInfo": {"name": "datalogger-screen", "version": "1.0"}})
+                           "serverInfo": {"name": "nightrider-screen", "version": "1.0"}})
         elif method == "tools/list":
             reply(msg_id, {"tools": [APPROVE, API_TOOL, SPOTIFY_TOOL, TASTE_TOOL, BT_TOOL]})
         elif method == "tools/call" and params.get("name") == "api":

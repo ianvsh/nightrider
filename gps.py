@@ -1,4 +1,4 @@
-"""GPS from the SIM7670G cellular + GNSS HAT on the GPIO UART (/dev/ttyS0).
+"""GPS from the SIM7670G cellular + GNSS HAT on the GPIO UART (/dev/serial0).
 
 The module talks AT commands at 115200. GNSS is off after every power-up, so
 this turns it on (AT+CGNSSPWR=1) and asks for NMEA on the same port
@@ -14,7 +14,7 @@ import time
 
 import serial
 
-PORT = os.environ.get("DATALOGGER_GPS", "/dev/ttyS0")    # "0" = no GPS
+PORT = os.environ.get("NIGHTRIDER_GPS", "/dev/serial0")    # "0" = no GPS
 BAUD = 115200
 STALE_SECS = 3.0          # no fix for this long = no GPS readings
 LATENCY_SECS = 0.3        # a fix reaches us roughly this long after its epoch

@@ -1,5 +1,5 @@
 [Unit]
-Description=Start the DataLogger hotspot when no saved Wi-Fi network is in range
+Description=Start the Nightrider hotspot when no saved Wi-Fi network is in range
 After=NetworkManager.service
 Wants=NetworkManager.service
 

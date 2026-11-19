@@ -4,20 +4,20 @@ After=bluetooth.service network.target
 Wants=bluetooth.service
 
 [Service]
-User=ian
-Group=ian
+User=@USER@
+Group=@USER@
 SupplementaryGroups=dialout bluetooth
-WorkingDirectory=/home/ian/datalogger
+WorkingDirectory=@HOME@/nightrider
 # Bluetooth can start soft-blocked; the + runs this line as root
 ExecStartPre=+-/usr/sbin/rfkill unblock bluetooth
-ExecStart=/usr/bin/python3 /home/ian/datalogger/logger.py
-Environment=DATALOGGER_DB=/var/lib/datalogger/log.db
-Environment=DATALOGGER_HZ=10
-Environment=DATALOGGER_HTTP_PORT=80
+ExecStart=/usr/bin/python3 @HOME@/nightrider/logger.py
+Environment=NIGHTRIDER_DB=/var/lib/nightrider/log.db
+Environment=NIGHTRIDER_HZ=10
+Environment=NIGHTRIDER_HTTP_PORT=80
 Environment=PYTHONUNBUFFERED=1
 # Uncomment if a wideband O2 gauge is wired to the DME (aem, innovate, ...)
-#Environment=GOLDY_WIDEBAND=aem
-StateDirectory=datalogger
+#Environment=NIGHTRIDER_WIDEBAND=aem
+StateDirectory=nightrider
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=always
 RestartSec=3

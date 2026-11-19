@@ -1,16 +1,16 @@
 """4G on the SIM7670G (SET > 4G). The modem is on USB (2026-11-12): a network card
 `usb0` (NetworkManager profile "cellular") and AT ports ttyACM0/ttyACM2; the GPS keeps
-the header UART (/dev/ttyS0), so nothing here touches it.
+the header UART (/dev/serial0), so nothing here touches it.
 
 - `Modem`: reads signal, network and SIM state over AT every POLL_SECS in a thread
   (local to the modem: no mobile data used).
 - `Usage`: mobile data used since the SIM was last topped up (SET > 4G: used / plan,
   REFILLED resets it), counted from usb0's byte counters, so it includes phones on the
   hotspot. Saved in data-usage.json every SAVE_SECS (SD card) or each SAVE_BYTES.
-- Settings in ~/.config/datalogger/network.json:
+- Settings in ~/.config/nightrider/network.json:
   prefer  "cell" (default, Ian 2026-11-12) or "wifi": which one carries internet when
           both are up, by the route metric of the "cellular" profile (Wi-Fi is 600).
-  hotspot True = the Pi's Wi-Fi is always the DataLogger hotspot, sharing 4G with
+  hotspot True = the Pi's Wi-Fi is always the Nightrider hotspot, sharing 4G with
           phones (NetworkManager "shared" = NAT); wifi-fallback reads this too and
           then never goes looking for other networks.
 """
@@ -24,7 +24,7 @@ import time
 
 import wifi
 
-FILE = os.path.expanduser("~/.config/datalogger/network.json")
+FILE = os.path.expanduser("~/.config/nightrider/network.json")
 DEFAULTS = {"prefer": "cell", "hotspot": False}
 PROFILE = "cellular"
 IFACE = "usb0"
@@ -35,7 +35,7 @@ OPERATORS = {"310260": "T-MOBILE", "310410": "AT&T", "311480": "VERIZON", "31012
 REG = {0: "NOT REGISTERED", 1: "HOME", 2: "SEARCHING", 3: "REFUSED", 4: "UNKNOWN", 5: "ROAMING"}
 
 
-USAGE_FILE = os.path.expanduser("~/.config/datalogger/data-usage.json")
+USAGE_FILE = os.path.expanduser("~/.config/nightrider/data-usage.json")
 PLANS_MB = (1000, 2000, 3000, 5000, 10000)
 SAVE_SECS = 600
 SAVE_BYTES = 5_000_000
@@ -207,7 +207,7 @@ def apply_prefer(prefer):
 def apply_hotspot(on):
     if on:
         ok, msg = wifi.start_hotspot()
-        return ok, "HOTSPOT ON: DATALOGGER, SHARING 4G" if ok else msg
+        return ok, "HOTSPOT ON: NIGHTRIDER, SHARING 4G" if ok else msg
     ok, out = wifi.nmcli("c", "down", "id", wifi.HOTSPOT, sudo=True)
     return True, "HOTSPOT OFF: JOINING SAVED WI-FI"
 

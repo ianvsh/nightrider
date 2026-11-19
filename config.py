@@ -1,9 +1,9 @@
-"""Per-install settings from ~/.config/datalogger/config.toml (not in git; see
+"""Per-install settings from ~/.config/nightrider/config.toml (not in git; see
 config.example.toml). Everything has a default, so a missing file is fine."""
 import os
 import tomllib
 
-PATH = os.path.expanduser("~/.config/datalogger/config.toml")
+PATH = os.path.expanduser("~/.config/nightrider/config.toml")
 
 
 def _load(path=PATH):

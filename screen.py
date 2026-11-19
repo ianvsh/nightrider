@@ -8,7 +8,7 @@
 - Colour scheme: GREEN (the original) or AMBER. pixels.to_panel recolours each
   frame (pixels.set_scheme), so no page needs to know.
 
-Settings live in ~/.config/datalogger/screen.json.
+Settings live in ~/.config/nightrider/screen.json.
 """
 import glob
 import json
@@ -21,7 +21,7 @@ import pixels
 import screens
 from pixels import AMBER, DIM, FAINT, GREEN, LH, LW, RED, button, inside, text
 
-SETTINGS = os.path.expanduser("~/.config/datalogger/screen.json")
+SETTINGS = os.path.expanduser("~/.config/nightrider/screen.json")
 DEFAULTS = {"brightness": 100, "auto": False, "night": 25, "scheme": "green",
             "layout": "classic"}         # the DRIVE page layout (display.LAYOUTS), chosen under SET
 HOME = config.HOME                 # until there's been a GPS fix (config.toml [map] home)

@@ -20,21 +20,26 @@ Motronic DME, on a Raspberry Pi (built on a 924S):
 
 ## Install
 
-The install script is still to come. It will set up packages, the Python venv,
-the services and the audio config.
+On a fresh **Raspberry Pi OS Lite (64-bit)** SD card (Raspberry Pi Imager: set a user,
+Wi-Fi and SSH), then over SSH:
 
-## Setup: your own accounts
+    sudo apt install -y git
+    git clone https://github.com/ianvsh/nightrider ~/nightrider
+    ~/nightrider/install.sh          # packages, speech models, services (~20 min)
+    ~/nightrider/setup.sh            # your name/car, Spotify and Claude logins
+    ~/nightrider/system/setup-maps.sh north-america/us/oregon   # offline maps (optional, ~1 h)
+    sudo reboot
 
-Nothing personal is stored in this repo. Each install needs:
+`install.sh` is safe to re-run (e.g. after `git pull`). Options: `--no-claude`,
+`--no-voices`. On a Pi 5 there's no headphone jack: plug in a USB DAC for AUX and
+re-run `install.sh` (or use Bluetooth). It prints the password of the fallback
+Wi-Fi hotspot (SSID `Nightrider`) the Pi starts when no saved network is around.
 
-1. **Spotify Premium** and a free Spotify developer app (developer.spotify.com).
-   Add `http://127.0.0.1:8989/login` as its redirect URI, then put its client ID in
-   `~/.config/spotify-player/app.toml` (`client_id = "..."`) and pick a device name
-   (`[device] name = "..."`). Start the player and approve the login link it prints.
-2. **Claude** (optional, for the AI page): `claude auth login` (Pro/Max plan), or an
-   Anthropic API key.
-3. **Personal settings** (optional): copy `config.example.toml` to
-   `~/.config/datalogger/config.toml` and set your name, car and home location.
+Moving from an older Pi: after `install.sh` on the new one, run
+`system/migrate.sh user@old-pi.local` to copy the drive log, settings, maps and logins.
+
+**4G HAT (SIM7670G):** shows up as `usb0` once its USB is plugged in. If it gets no
+data, send it `AT+DIALMODE=0` then `AT+CRESET` once (e.g. with `minicom -D /dev/ttyACM0`).
 
 ## Development
 

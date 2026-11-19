@@ -57,7 +57,7 @@ class Terminal:
         self.lock = threading.Lock()
         self.fd = self.proc = None
         self.ended = False
-        self.in_tmux = False           # attached to datalogger-term's tmux: scroll back with its copy mode
+        self.in_tmux = False           # attached to nightrider-term's tmux: scroll back with its copy mode
         self._tmux_back = False        # we put tmux in copy mode (cancelled before the next key)
         self._pending = 0              # finger travel not yet turned into scrolling, in lines (+ = back)
         self._out = b""                # typed bytes the program hasn't taken yet (the pty is non-blocking)
@@ -83,7 +83,7 @@ class Terminal:
         env = {"HOME": user.pw_dir, "USER": user.pw_name, "LOGNAME": user.pw_name,
                "SHELL": user.pw_shell, "TERM": "linux", "LANG": "C.UTF-8",
                "PATH": f"{user.pw_dir}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"}
-        # The shell lives in datalogger-term.service's tmux, so it outlives display restarts;
+        # The shell lives in nightrider-term.service's tmux, so it outlives display restarts;
         # if that isn't running, a login shell of our own (which dies with the display).
         # The tmux client runs straight under setsid (not inside `sh -c`): a session leader
         # whose parent is in another session is an orphaned process group, so the kernel
@@ -307,7 +307,7 @@ SPECIAL = {"ENTER": "\r", "KPENTER": "\r", "BACKSPACE": "\x7f", "TAB": "\t", "ES
            "F6": "\x1b[17~", "F7": "\x1b[18~", "F8": "\x1b[19~", "F9": "\x1b[20~", "F10": "\x1b[21~",
            "F11": "\x1b[23~", "F12": "\x1b[24~"}
 ARROWS = {"UP": "A", "DOWN": "B", "RIGHT": "C", "LEFT": "D"}
-KEYLOG = os.environ.get("DATALOGGER_KEYLOG") == "1"   # debug: log every key press
+KEYLOG = os.environ.get("NIGHTRIDER_KEYLOG") == "1"   # debug: log every key press
 MODS = {"LEFTSHIFT": "shift", "RIGHTSHIFT": "shift", "LEFTCTRL": "ctrl", "RIGHTCTRL": "ctrl",
         "LEFTALT": "alt", "RIGHTALT": "alt"}
 

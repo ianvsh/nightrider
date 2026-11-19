@@ -1,6 +1,6 @@
 #!/bin/bash
 # Join a saved Wi-Fi network if one is in range; otherwise start the
-# DataLogger hotspot so a phone can always connect. While on the hotspot with
+# Nightrider hotspot so a phone can always connect. While on the hotspot with
 # no phone connected, keep looking for the saved networks: every SCAN_EVERY
 # seconds a scan (joins the moment one shows up, e.g. the phone's hotspot turned
 # on after the car started), and every RETRY seconds the hotspot is dropped for
@@ -8,8 +8,8 @@
 # so Spotify had no internet long after the phone's hotspot was up (2026-11-08).
 # Hotspot mode (SET > 4G > WI-FI HOTSPOT ON, "hotspot": true in network.json): the
 # hotspot stays up all the time, sharing 4G with phones, and no other network is tried.
-HOTSPOT=datalogger-hotspot
-SETTINGS=/home/ian/.config/datalogger/network.json
+HOTSPOT=nightrider-hotspot
+SETTINGS=@HOME@/.config/nightrider/network.json
 GRACE=45      # seconds to wait for a saved network at start / after losing one
 RETRY_GRACE=20  # the same, on a retry from an idle hotspot
 SCAN_EVERY=300   # was 20 s: each scan ties up the radio Bluetooth audio shares (choppy music, 2026-11-15); 4G now covers the internet

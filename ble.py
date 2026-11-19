@@ -22,8 +22,8 @@ import dbus.service
 from gi.repository import GLib
 
 BLUEZ = "org.bluez"
-APP_PATH = "/org/datalogger"
-ADV_PATH = "/org/datalogger/adv0"
+APP_PATH = "/org/nightrider"
+ADV_PATH = "/org/nightrider/adv0"
 GATT_MANAGER = "org.bluez.GattManager1"
 ADV_MANAGER = "org.bluez.LEAdvertisingManager1"
 OM_IFACE = "org.freedesktop.DBus.ObjectManager"
