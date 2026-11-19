@@ -1,0 +1,13 @@
+[Unit]
+Description=Porsche 924S logo on the touchscreen early in boot (system/splash.sh)
+# Runs alongside the rest of boot and nothing waits for it: no Before=, Type=simple.
+# The logo must never add to start-up time (Ian: "fast startup as possible").
+DefaultDependencies=no
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/datalogger-splash
+
+[Install]
+WantedBy=sysinit.target

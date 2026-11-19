@@ -1,0 +1,12 @@
+# Copy to ~/.config/datalogger/config.toml and edit. Every setting is optional.
+
+[driver]
+name = ""                 # the AI calls you this; empty = "the driver"
+
+[car]
+name = "1988 Porsche 924S"
+
+[map]
+home = [45.5189, -122.6793]   # map centre before the first GPS fix: [lat, lon]
+
+# The Spotify Connect device name lives in ~/.config/spotify-player/app.toml ([device] name).

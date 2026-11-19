@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0f12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Logger">
+<link rel="manifest" href="app/manifest.webmanifest">
+<link rel="icon" href="app/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="app/icon-192.png">
+<link rel="stylesheet" href="app/app.css">
+<title>Data Logger</title>
+</head>
+<body>
+<header>
+  <h1>Data Logger <span id="conn" class="dot" title="connection"></span></h1>
+  <div id="state">connecting…</div>
+</header>
+
+<main>
+  <section id="v-live" hidden>
+    <div id="banner" class="banner" hidden></div>
+    <div id="tiles" class="tiles"></div>
+    <h2 id="extra-h" hidden>Other readings</h2>
+    <table id="extra" class="kv"></table>
+  </section>
+
+  <section id="v-drives" hidden>
+    <ul id="drives" class="list"></ul>
+    <button id="more" class="btn" hidden>Older drives</button>
+    <p id="drives-empty" class="muted" hidden>No drives yet. One starts when the DME sends data and ends 30 s after it stops.</p>
+  </section>
+
+  <section id="v-drive" hidden>
+    <a href="#drives" class="back">‹ Drives</a>
+    <h2 id="d-title"></h2>
+    <p id="d-sub" class="muted"></p>
+    <div id="d-stats" class="stats"></div>
+    <div id="d-cursor" class="cursor muted">Drag across a chart to read values</div>
+    <div id="d-charts"></div>
+    <p><a id="d-csv" class="btn" download>Download CSV</a></p>
+  </section>
+
+  <section id="v-status" hidden>
+    <table id="info" class="kv"></table>
+    <h2>Settings</h2>
+    <label class="row"><span>Temperatures in °F</span><input type="checkbox" id="opt-f"></label>
+    <label class="row"><span>Speed in mph</span><input type="checkbox" id="opt-mph"></label>
+    <h2>Data</h2>
+    <p><a class="btn" href="/api/samples.csv?limit=100000&download=1" download>Download everything (CSV)</a></p>
+    <p class="muted">Add this page to your home screen for an app icon. On the car's own hotspot
+      (Wi-Fi <b>DataLogger</b>) the address is <b>http://10.42.0.1</b>.</p>
+  </section>
+</main>
+
+<nav>
+  <a href="#live" data-view="live">Live</a>
+  <a href="#drives" data-view="drives">Drives</a>
+  <a href="#status" data-view="status">Status</a>
+</nav>
+
+<script src="app/app.js"></script>
+</body>
+</html>

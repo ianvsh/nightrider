@@ -1,0 +1,25 @@
+[Unit]
+Description=Data logger touchscreen (5" DSI, 800x480)
+After=datalogger.service
+Wants=datalogger.service
+
+[Service]
+User=ian
+Group=ian
+SupplementaryGroups=video input audio
+WorkingDirectory=/home/ian/datalogger
+# Detach the text console from the screen so it can't draw over the dashboard
+# (the + runs these as root); it comes back when this service stops.
+ExecStartPre=+/bin/sh -c 'for v in /sys/class/vtconsole/vtcon*; do grep -q "frame buffer" $v/name && echo 0 > $v/bind; done; true'
+ExecStopPost=+/bin/sh -c 'for v in /sys/class/vtconsole/vtcon*; do grep -q "frame buffer" $v/name && echo 1 > $v/bind; done; true'
+# .venv = system packages + faster-whisper (speech for the Claude page)
+ExecStart=/home/ian/datalogger/.venv/bin/python /home/ian/datalogger/display.py
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/ian/.local/bin:/usr/local/bin:/usr/bin:/bin
+# 1 = temperatures in °F
+Environment=DATALOGGER_DISPLAY_F=0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

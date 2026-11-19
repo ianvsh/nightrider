@@ -1,0 +1,22 @@
+[Unit]
+Description=TERM page shell (tmux session that outlives display restarts)
+
+[Service]
+User=ian
+Group=ian
+WorkingDirectory=/home/ian
+# Its own tmux server (-L term), not the default one: that one belongs to
+# spotify.service and dies whenever the Spotify watchdog restarts it.
+# The TERM page attaches with: tmux -L term attach -t term   (detach: ctrl-b d)
+Type=forking
+ExecStart=/usr/bin/tmux -L term -f /home/ian/datalogger/system/tmux-term.conf new-session -d -s term -x 66 -y 26
+ExecStop=/usr/bin/tmux -L term kill-server
+Environment=LANG=C.UTF-8
+Environment=SHELL=/bin/bash
+Environment=PATH=/home/ian/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin
+# typing `exit` in the last shell ends the server; a fresh one is back in 2 s
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
