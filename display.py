@@ -44,12 +44,13 @@ import screens
 import spotify
 import terminal
 import wifi
-from pixels import (AMBER, BG, DIM, FAINT, GREEN, H, LH, LW, RED, W,  # noqa: F401
+from pixels import (AMBER, BG, DIM, FAINT, GREEN, H, LH, LW, RED, W, WHITE, YELLOW,  # noqa: F401
                     GLYPHS, SCALE, blink, button, inside, overlay, text, text_width, to_panel)
 
 API = os.environ.get("NIGHTRIDER_URL", "http://127.0.0.1")
 FAHRENHEIT = os.environ.get("NIGHTRIDER_DISPLAY_F", "0") == "1"
-MPH = os.environ.get("NIGHTRIDER_DISPLAY_MPH", "1") == "1"
+MPH = os.environ.get("NIGHTRIDER_DISPLAY_MPH", "1") == "1"   # then screen.json "speed_unit" (tap the speed)
+METRIC_FUEL = False                # screen.json "fuel_units": L/h and km/L instead of gal/h and MPG
 FPS = 4                           # pages that only change now and then
 LIVE_FPS = 15                     # gauges and map (the logger samples at 10 Hz, GPS at 1 Hz)
 LIVE_PAGES = {"gauges", "more", "map"}
@@ -299,13 +300,14 @@ DRIVE_MODES = [("last", "LAST DRIVE"), ("today", "TODAY"), ("week", "THIS WEEK")
                ("month", "THIS MONTH"), ("year", "THIS YEAR")]
 # gauges page layout (drawing pixels)
 SPLIT = 150                                # tach/speed left of here, readouts right
-GEAR_BOX = (100, 21, 145, 75)              # right of the tach
+FUEL_COL = (94, 21, 148)                   # x0, y0, x1: gear, burn, trip, tank boxes right of the tach
+FUEL_ROW_H = 26
 SPEED_Y = 99                               # big speed under the tach
 FOOTER_Y = LH - 9                          # one small line along the bottom
 DRIVE_BOX = (122, FOOTER_Y - 4, 233, LH - 1)   # drawn round the drive time + miles while pressed
 DRIVE_TAP = (122, FOOTER_Y - 14, 233, LH - 1)  # tap here to step DRIVE_MODES (taller: finger-sized)
-MPG_BOX = (100, 78, 147, 126)              # fuel, under the gear box
-MPG_TAP = (97, 77, SPLIT - 1, 127)         # opens the GAS screen
+MPG_TAP = (92, 20, SPLIT - 1, 127)         # the whole column opens the GAS screen
+SPEED_TAP = (0, 94, 91, 127)               # tap the big speed: mph <-> km/h
 
 
 def period_start(mode, now=None):
@@ -474,40 +476,67 @@ def airflow_trace(img, d, feed, live, data, y=131, x0=4, x1=LW - 5):
         d.line(pts, fill=GREEN)
 
 
-def mpg_box(img, d, feed, live, lit=False):
-    """Under the gear box: MPG over the last 10 s (gal/h when stopped); this tank's
-    MPG with the engine off. Tap: GAS screen."""
-    f = getattr(feed, "fuel", None) or {}
-    x0, y0, x1, y1 = MPG_BOX
-    cx = (x0 + x1 + 1) // 2
-    if live and f.get("now_mpg") is not None:
-        lab, val, scale, note = "MPG", f"{min(f['now_mpg'], 99):.0f}", 3, "10S AVG"
-    elif live and f.get("now_gph") is not None:
-        lab, val, scale, note = "GAL/H", f"{f['now_gph']:.2f}", 2, "10S AVG"
+def set_units(settings, **kw):
+    """speed_unit="mph"/"kmh", fuel_units="imperial"/"metric": change now and save (screen.json)."""
+    global MPH, METRIC_FUEL
+    if settings is not None:
+        settings.change(**kw)
+        s = settings.settings
     else:
-        tank = (f.get("tank") or {}).get("mpg")
-        lab, val, scale, note = "MPG", "-" if tank is None else f"{min(tank, 99):.0f}", 3, "TANK AVG"
-    d.rectangle(MPG_BOX, outline=DIM if val != "-" else FAINT, fill=FAINT if lit else None)
-    text(img, cx, y0 + 3, lab, DIM, align="c")
-    text(img, cx, y0 + (14 if scale == 3 else 18), val,
-         (AMBER if live else GREEN) if val != "-" else DIM, scale=scale, align="c")
-    text(img, cx, y1 - 9, note, FAINT if not lit else DIM, align="c")
+        s = kw
+    if "speed_unit" in s:
+        MPH = s["speed_unit"] != "kmh"
+    if "fuel_units" in s:
+        METRIC_FUEL = s["fuel_units"] == "metric"
 
 
-def speed_and_gear(img, d, data, live):
-    """Gear in a box right of the tach ("-" = no gear), big GPS speed under both."""
+def fuel_values(feed, data, live):
+    """(burn, trip, tank) as strings in the chosen units, "-" when not known. Burn = fuel
+    per hour now: the logger's 10 s figure when stopped, else speed / MPG."""
+    f = getattr(feed, "fuel", None) or {}
+    gph = None
+    if live and f.get("now_gph") is not None:
+        gph = f["now_gph"]
+    elif live and f.get("now_mpg") and data.get("speed_kmh") is not None:
+        gph = data["speed_kmh"] / 1.609344 / f["now_mpg"]
+    sess = (feed.latest or {}).get("session")
+    drive = f.get("drive") or {}
+    trip = drive.get("mpg") if drive.get("session") == sess else None
+    tank = (f.get("tank") or {}).get("mpg")
+    if METRIC_FUEL:
+        burn = "-" if gph is None else f"{gph * GAL_TO_L:.1f}"
+        econ = lambda m: "-" if m is None else f"{min(m * MPG_TO_KML, 99):.1f}"
+    else:
+        burn = "-" if gph is None else f"{gph:.2f}"
+        econ = lambda m: "-" if m is None else f"{min(m, 99):.0f}" if m >= 10 else f"{m:.1f}"
+    return burn, econ(trip), econ(tank)
+
+
+def fuel_column(img, d, feed, data, live, lit=False):
+    """Right of the tach, four boxes: GEAR, fuel per hour, TRIP and TANK economy (yellow).
+    Tap: GAS screen."""
+    x0, y, x1 = FUEL_COL
+    g = data.get("gear") if live and data.get("speed_kmh") is not None else None
+    burn, trip, tank = fuel_values(feed, data, live)
+    econ = "KM/L" if METRIC_FUEL else "MPG"
+    rows = [("GEAR", fmt("gear", g) if g is not None else "-"),
+            ("L/H" if METRIC_FUEL else "GAL/H", burn),
+            ("TRIP " + econ, trip), ("TANK " + econ, tank)]
+    cx = (x0 + x1 + 1) // 2
+    for lab, val in rows:
+        box = (x0, y, x1, y + FUEL_ROW_H - 1)
+        d.rectangle(box, outline=DIM if val != "-" else FAINT, fill=FAINT if lit else None)
+        text(img, cx, y + 3, lab, DIM, align="c")
+        text(img, cx, y + 11, val, YELLOW if val != "-" else DIM, scale=2, align="c")
+        y += FUEL_ROW_H
+
+
+def big_speed(img, data, live, lit=False):
+    """Big GPS speed under the tach, in white; tap toggles mph / km/h."""
     v = data.get("speed_kmh") if live else None
-    x0, y0, x1, y1 = GEAR_BOX
-    g = data.get("gear") if v is not None else None
-    d.rectangle(GEAR_BOX, outline=DIM if g else FAINT)
-    text(img, (x0 + x1 + 1) // 2, y0 + 3, "GEAR", DIM, align="c")
-    text(img, (x0 + x1 + 1) // 2, y0 + 15, fmt("gear", g) if g is not None else "-",
-         AMBER if g else DIM, scale=5, align="c")
-    y = SPEED_Y
     val = fmt("speed_kmh", v)
-    text(img, 4, y, val, GREEN if v is not None else DIM, scale=4)
-    if v is not None:
-        text(img, 4 + text_width(val, 4) + 3, y + 21, unit("speed_kmh"), DIM, upper=False)
+    text(img, 4, SPEED_Y, val, WHITE if v is not None else DIM, scale=4)
+    text(img, 4 + text_width(val, 4) + 3, SPEED_Y + 21, unit("speed_kmh"), WHITE if lit else DIM, upper=False)
 
 
 def footer(img, d, feed, data, live, ui):
@@ -554,8 +583,8 @@ def layout_classic(img, d, feed, ui=None):
         text(img, 50 + text_width(fmt("rpm", rpm), 2) // 2 + 3, 86, "RPM", DIM)
     else:
         text(img, 50, 79, "OFF" if feed.ok else "----", DIM, scale=2, align="c")
-    speed_and_gear(img, d, data, live)
-    mpg_box(img, d, feed, live, bool(ui and ui.lit("mpg")))
+    fuel_column(img, d, feed, data, live, bool(ui and ui.lit("mpg")))
+    big_speed(img, data, live, bool(ui and ui.lit("speed")))
     # six readouts down the right
     d.line([SPLIT, TOP, SPLIT, 127], fill=FAINT)
     for i, k in enumerate(MAIN_TILES):
@@ -590,7 +619,7 @@ MAPMUSIC_MAP = (0, TOP + 1, 157, 117)
 MUSIC_RECT = (0, 119, LW - 1, LH - 1)
 SIDE_X = 161                               # the gauge column beside a map
 LAYOUT_TAPS = {
-    "classic": {"drive": DRIVE_TAP, "mpg": MPG_TAP},
+    "classic": {"drive": DRIVE_TAP, "mpg": MPG_TAP, "speed": SPEED_TAP},
     "cockpit": {"mpg": (LW - 70, 118, LW - 1, LH - 1)},
     "bars": {"drive": DRIVE_TAP, "mpg": (4, 113, 104, 141)},
     "map": {"map": MAP_RECT, "mpg": (SIDE_X, 118, LW - 1, 140)},
@@ -1778,7 +1807,9 @@ class UI(screens.Pressable):
             if hit == "drive":
                 self.drive_mode = (self.drive_mode + 1) % len(DRIVE_MODES)
             elif hit == "mpg":
-                self.stack.append(gas.GasScreen(self.feed))
+                self.stack.append(gas.GasScreen(self.feed, self.screen, set_units))
+            elif hit == "speed":
+                set_units(self.screen, speed_unit="kmh" if MPH else "mph")
             else:                                  # the map or music part of a layout: its tab
                 self.goto("map" if hit == "map" else "spotify")
         elif name in ("gauges", "more"):
@@ -2157,6 +2188,7 @@ def main():
             time.sleep(60)
     log(f"lcd: {fb.path} {fb.size[0]}x{fb.size[1]} {fb.bpp} bpp")
     display_settings = screen.Screen()     # first: its colour scheme (Ian's: amber) colours the intro too
+    set_units(None, **display_settings.settings)   # mph/km/h and fuel units from screen.json
     show_logo(fb)                          # until the dashboard's first frame, a few seconds on
     feed = Feed()
     wake = threading.Event()

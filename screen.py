@@ -23,7 +23,9 @@ from pixels import AMBER, DIM, FAINT, GREEN, LH, LW, RED, button, inside, text
 
 SETTINGS = os.path.expanduser("~/.config/nightrider/screen.json")
 DEFAULTS = {"brightness": 100, "auto": False, "night": 25, "scheme": "green",
-            "layout": "classic"}         # the DRIVE page layout (display.LAYOUTS), chosen under SET
+            "layout": "classic",
+            "speed_unit": "mph",          # DRIVE page speed: "mph" or "kmh" (tap the speed)
+            "fuel_units": "imperial"}     # GAS screen + DRIVE fuel column: "imperial" or "metric"         # the DRIVE page layout (display.LAYOUTS), chosen under SET
 HOME = config.HOME                 # until there's been a GPS fix (config.toml [map] home)
 # Backlight floor = 1%. 2026-10-16: raw 16 left Ian's panel completely dark; 2026-10-18 he
 # watched raw 64 down to 16 step by step and chose 48 as the lowest still readable at night.

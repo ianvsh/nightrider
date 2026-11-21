@@ -17,6 +17,10 @@ DIM = (28, 110, 52)
 GREEN = (90, 255, 130)
 AMBER = (255, 184, 40)
 RED = (255, 52, 36)
+# True colours: drawn exactly as is in every scheme (recolour leaves these pixels alone)
+WHITE = (255, 255, 255)
+YELLOW = (255, 222, 0)
+TRUE_COLOURS = (WHITE, YELLOW)
 
 # ---- 5x7 pixel font: 35 characters of . and # per glyph, row by row ----
 
@@ -181,8 +185,12 @@ def recolour(a):
     # among the warm colours, amber has g/r ~0.72 and red ~0.2: blend between them
     t = np.clip((g / np.maximum(r, 1) - 0.2) / 0.52, 0, 1)[..., None]
     warm = r[..., None] * (t * _scheme["highlight"] + (1 - t) * _scheme["red"])
-    out = np.where(greenish, g[..., None] * _scheme["main"], warm)
-    return np.clip(out, 0, 255).astype(np.uint8)
+    out = np.clip(np.where(greenish, g[..., None] * _scheme["main"], warm), 0, 255).astype(np.uint8)
+    for c in TRUE_COLOURS:
+        keep = np.all(a == c, axis=-1)
+        if keep.any():
+            out[keep] = c
+    return out
 
 
 def overlay(out, img, x, y, scale=2, scanline=13):
