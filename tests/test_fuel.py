@@ -45,6 +45,7 @@ class FuelTest(unittest.TestCase):
         end = drive(self.f, 1, 30, cruise)
         s = self.f.summary(end)
         self.assertTrue(15 < s["now_mpg"] < 60, s["now_mpg"])
+        self.assertAlmostEqual(s["now_gph"], 60 / s["now_mpg"], delta=0.2)   # gal/h while moving too
         cut = dict(cruise, injector_ms=0.0)              # coasting in gear: no fuel
         self.assertEqual(fuel.fuel_grams(cut, 1.0), 0.0)
 

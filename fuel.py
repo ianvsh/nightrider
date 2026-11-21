@@ -225,10 +225,9 @@ class Fuel:
             now_mpg = now_gph = None
             if secs >= 1:
                 miles, gal = km / KM_PER_MILE, self.gallons(g)
+                now_gph = round(gal / secs * 3600, 2)          # same 10 s window, moving or not
                 if miles / secs * 3600 >= MOVING_MPH:
                     now_mpg = mpg(miles, gal) or 99.9          # coasting on fuel cut-off
-                else:
-                    now_gph = round(gal / secs * 3600, 2)
             d_mi, d_gal = self.drive["km"] / KM_PER_MILE, self.gallons(self.drive["g"])
             t_mi, t_gal = self.tank_km / KM_PER_MILE, self.gallons(self.tank_g)
             return {

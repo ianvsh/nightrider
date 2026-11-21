@@ -492,12 +492,12 @@ def set_units(settings, **kw):
 
 def fuel_values(feed, data, live):
     """(burn, trip, tank) as strings in the chosen units, "-" when not known. Burn = fuel
-    per hour now: the logger's 10 s figure when stopped, else speed / MPG."""
+    per hour now: the logger's 10 s figure (older loggers only sent it when stopped)."""
     f = getattr(feed, "fuel", None) or {}
     gph = None
     if live and f.get("now_gph") is not None:
         gph = f["now_gph"]
-    elif live and f.get("now_mpg") and data.get("speed_kmh") is not None:
+    elif live and f.get("now_mpg") and data.get("speed_kmh") is not None:     # until the logger restarts
         gph = data["speed_kmh"] / 1.609344 / f["now_mpg"]
     sess = (feed.latest or {}).get("session")
     drive = f.get("drive") or {}
