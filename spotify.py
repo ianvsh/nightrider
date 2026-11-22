@@ -629,6 +629,16 @@ class Watchdog:
 
 
 EXPECT_SECS = 3                    # how long a picked song is shown before Spotify reports it
+# How the screen keeps up with the player (2026-11-22, Ian: wrong song shown, slow MUSIC tab).
+# `get key playback` reads spotify_player's own cache (~20 ms, no Spotify server call), so it
+# can be asked often. That cache only refreshes from Spotify now and then (app.toml
+# playback_refresh_duration_in_ms = 0), and a song ending by itself could leave the old one
+# showing - so when the cache is clearly stale, Spotify's servers are asked directly, rarely.
+POLL_SHOWN, POLL_HIDDEN = 2.0, 3.0     # s between cache reads: MUSIC tab showing / not
+FOLLOW_SECS, FOLLOW_EVERY = 3.0, 0.25  # after a tap or a song's end: read this often until it changes
+TRUTH_EVERY = 20.0                     # Web API "what's playing" at most once per this many s...
+TRUTH_PER_HOUR = 40                    # ...and this many an hour (a song is ~3-4 min), never while blocked
+STALE_KEEP = 600                       # ignore a cache proven stale for at most this long
 WANT_SECS = 180                    # a play tapped before the player was ready is kept this long...
 WANT_EVERY = 5                     # ...and tried again this often (one device check each time)
 NOT_READY = ("isn't running", "didn't answer", "not logged in")     # errors a later try can get past
@@ -671,6 +681,15 @@ class Player:
         self._expect = (None, 0)       # (track id, until): a picked song shown before Spotify reports it
         self._wanted = None            # (monotonic, label, fn): a play tapped while the player wasn't ready
         self._want_tried = -1e9
+        self._follow_until = 0.0       # reading the cache fast until this (monotonic)...
+        self._follow_from = None       # ...or until (song id, playing) differs from this
+        self._follow_kind = ""         # "skip"/"end": still unchanged at the end -> ask Spotify
+        self._truths = []              # monotonic times of Web API "what's playing" checks
+        self._stale_cli = None         # song id the cache shows that Spotify said is over
+        self._stale_since = 0.0
+        self._ended_id = None          # song whose end was already watched for
+        self.song_seq = 0              # +1 each time the song changes (the DRIVE/MAP song card)
+        self.song_changed_at = -1e9
         self._kick = threading.Event()
         self._lock = threading.Lock()
         threading.Thread(target=self._poll, daemon=True).start()
@@ -681,39 +700,131 @@ class Player:
 
     def _poll(self):
         while True:
-            fine = False
-            try:
-                before = self.state and dict(self.state, progress_ms=self.progress)
-                polled = get("playback", timeout=10)
-                tid, until = self._expect
-                if tid and time.monotonic() < until and ((polled or {}).get("item") or {}).get("id") != tid:
-                    raise _Stale()                       # still the old song: keep showing the picked one
-                self._expect = (None, 0)
-                self.state, self.at, self.error = polled, time.monotonic(), ""
-                fine = bool(self.state and self.state.get("item"))
-                self._song_changed(before)
-                if self.playing and self.device == DEVICE:
-                    self.played_at = self.at
-                    if self.watchdog:
-                        self.watchdog.playing_here()
-                self._play_wanted()
-            except _Stale:
-                pass
-            except (RuntimeError, ValueError) as e:
-                self.error = str(e)
-            self.polled = True
-            if self.watchdog:
-                self._watch(fine)
-                if time.monotonic() - self._flushed_at > 60 and not blocked_until() and pending_likes():
-                    self._flushed_at = time.monotonic()
-                    flush_pending_likes(self.log)
-            self._changed()
-            self._kick.wait(2 if self.visible else 15)
+            self._poll_once()
+            self._kick.wait(self._next_wait())
             self._kick.clear()
+
+    def _poll_once(self):
+        fine = False
+        try:
+            before = self.state and dict(self.state, progress_ms=self.progress)
+            polled = get("playback", timeout=10)
+            fine = bool(polled and polled.get("item"))   # the player answered with a song
+            cli_id = ((polled or {}).get("item") or {}).get("id")
+            if self._stale_cli and cli_id == self._stale_cli and \
+                    time.monotonic() - self._stale_since < STALE_KEEP:
+                raise _Stale()                       # the cache is still on a song that's over
+            self._stale_cli = None
+            tid, until = self._expect
+            if tid and time.monotonic() < until and ((polled or {}).get("item") or {}).get("id") != tid:
+                raise _Stale()                       # still the old song: keep showing the picked one
+            self._expect = (None, 0)
+            self.state, self.at, self.error = polled, time.monotonic(), ""
+            self._song_changed(before)
+            if self.playing and self.device == DEVICE:
+                self.played_at = self.at
+                if self.watchdog:
+                    self.watchdog.playing_here()
+            self._play_wanted()
+        except _Stale:
+            pass
+        except (RuntimeError, ValueError) as e:
+            self.error = str(e)
+        try:
+            self._keep_up()
+        except Exception as e:                       # never let the poll thread die
+            self.log(f"spotify: keep-up error: {e!r}")
+        self.polled = True
+        if self.watchdog:
+            self._watch(fine)
+            if time.monotonic() - self._flushed_at > 60 and not blocked_until() and pending_likes():
+                self._flushed_at = time.monotonic()
+                flush_pending_likes(self.log)
+        self._changed()
+
+    # ---- keeping up with the player ----
+
+    def _now_key(self):
+        return ((self.item or {}).get("id"), self.playing)
+
+    def _raw_progress(self):
+        """ms since the song began, NOT stopped at the song's end (progress is)."""
+        if not self.state:
+            return 0
+        ms = self.state.get("progress_ms") or 0
+        return ms + ((time.monotonic() - self.at) * 1000 if self.playing else 0)
+
+    def _follow(self, kind, start=None):
+        """Read the cache every FOLLOW_EVERY s for FOLLOW_SECS, until what's playing changes."""
+        self._follow_from = start if start is not None else self._now_key()
+        self._follow_until = time.monotonic() + FOLLOW_SECS
+        self._follow_kind = kind
+
+    def _keep_up(self):
+        """After each poll: start/stop fast reads, and ask Spotify itself when the cache is stale."""
+        now = time.monotonic()
+        dur = self.duration
+        if self._follow_from is not None and self._now_key() != self._follow_from:
+            self._follow_from, self._follow_until = None, 0.0        # it changed: back to normal
+        elif self._follow_from is not None and now >= self._follow_until:
+            kind, self._follow_from = self._follow_kind, None         # a skip / song end that never showed
+            if kind in ("skip", "end"):
+                self._ask_spotify(f"no change after a {kind}")
+        if self.playing and dur:
+            left = dur - self._raw_progress()
+            if left <= 0 and self._follow_from is None and self._ended_id != self.item.get("id"):
+                self._ended_id = self.item.get("id")                   # the song should be over by now:
+                self._follow("end")                                    # watch for the next one
+            if left < -2000 - FOLLOW_SECS * 1000:                      # well past its end, still showing
+                self._ask_spotify("past the song's end")
+
+    def _next_wait(self):
+        now = time.monotonic()
+        if self._follow_from is not None and now < self._follow_until:
+            return FOLLOW_EVERY
+        wait = POLL_SHOWN if self.visible else POLL_HIDDEN
+        if self.playing and self.duration:
+            left = (self.duration - self._raw_progress()) / 1000
+            if 0 < left < wait:
+                wait = left + 0.2                                      # look right as it ends
+        return max(0.1, wait)
+
+    def _ask_spotify(self, why):
+        """One Web API "what's playing", rationed (TRUTH_EVERY, TRUTH_PER_HOUR, never while
+        blocked). If it differs from the cache, show it, and ignore the cache while it still
+        shows the old song."""
+        now = time.monotonic()
+        self._truths = [t for t in self._truths if now - t < 3600]
+        if blocked_until() or (self._truths and now - self._truths[-1] < TRUTH_EVERY) \
+                or len(self._truths) >= TRUTH_PER_HOUR or not self.state:
+            return
+        self._truths.append(now)
+        try:
+            fresh = web("GET", "me/player", _token())
+        except RuntimeError as e:
+            self.log(f"spotify: couldn't check what's playing ({why}): {e}")
+            return
+        if not fresh or not fresh.get("item"):
+            return
+        old_id = (self.item or {}).get("id")
+        if fresh["item"].get("id") == old_id and bool(fresh.get("is_playing")) == self.playing:
+            self.state, self.at = dict(self.state, progress_ms=fresh.get("progress_ms") or 0), time.monotonic()
+            return
+        self.log(f"spotify: player's cache was stale ({why}): now "
+                 f"\"{fresh['item'].get('name', '?')}\"")
+        before = dict(self.state, progress_ms=self.progress)
+        if fresh["item"].get("id") != old_id:
+            self._stale_cli, self._stale_since = old_id, time.monotonic()
+        self.state, self.at = fresh, time.monotonic()
+        self._song_changed(before)
+        self._changed()
 
     def _song_changed(self, before):
         """After each poll: a song that ended note for taste.py, and look up whether the new one is liked."""
         old, new = (before or {}).get("item") or {}, self.item or {}
+        if old.get("id") and new.get("id") and old.get("id") != new.get("id"):
+            self.song_seq += 1                           # the DRIVE / MAP pages show a song card
+            self.song_changed_at = time.monotonic()
         if old.get("id") and old.get("id") != new.get("id") and old.get("type", "track") == "track":
             taste.record_play(old, before.get("progress_ms") or 0)
         tid = new.get("id") if new.get("type", "track") == "track" else None
@@ -841,11 +952,13 @@ class Player:
 
     # ---- buttons ----
 
-    def _do(self, label, fn, play=False, retry=False):
+    def _do(self, label, fn, play=False, retry=False, follow="cmd"):
         """Run a button's command in a thread. play = it starts music: if the player isn't
-        ready yet, it's kept and done once it is (_play_wanted)."""
+        ready yet, it's kept and done once it is (_play_wanted). Afterwards the cache is read
+        fast until the change shows (follow="skip": if it never does, Spotify is asked)."""
         if not self._lock.acquire(blocking=False):      # one command at a time
             return
+        start = self._now_key()
         if not retry:
             self._wanted = None                         # a new tap replaces an older wish
         self.doing = label
@@ -864,10 +977,9 @@ class Player:
                     self._want_tried = time.monotonic()
             finally:
                 self.doing = ""
+                self._follow(follow, start)             # read fast until the change shows
                 self._lock.release()
-                self.refresh()                          # show the result at once...
-                time.sleep(0.4)
-                self.refresh()                          # ...and again once Spotify has caught up
+                self.refresh()
         threading.Thread(target=work, daemon=True).start()
 
     def toggle(self):
@@ -887,10 +999,10 @@ class Player:
     def next(self):
         if self.state:                                  # an early NEXT is a skip: note it for Claude
             taste.record_skip(dict(self.state, progress_ms=self.progress), "screen")
-        self._do("NEXT...", lambda: run("playback", "next"))
+        self._do("NEXT...", lambda: run("playback", "next"), follow="skip")
 
     def previous(self):
-        self._do("BACK...", lambda: run("playback", "previous"))
+        self._do("BACK...", lambda: run("playback", "previous"), follow="skip")
 
     def toggle_shuffle(self):
         if self.state:

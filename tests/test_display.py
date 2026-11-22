@@ -243,6 +243,35 @@ class ScreensTest(unittest.TestCase):
         finally:
             display.set_units(None, speed_unit="mph", fuel_units="imperial")
 
+    def test_new_song_card_on_drive_and_map_only(self):
+        class P:
+            song_seq, title, artist, visible = 0, "Harvest Moon", "Neil Young", False
+        p = P()
+        drawn = []
+        ui = display.UI(FakeFeed(True), None, p)
+        real = display.text
+        def spy(img, x, y, s, *a, **k):
+            drawn.append(s)
+            return real(img, x, y, s, *a, **k)
+        with mock.patch.object(display, "text", spy):
+            display.render(ui.feed, display.PAGES.index("gauges"), ui)    # start-up: no card
+            self.assertNotIn("NOW PLAYING", drawn)
+            p.song_seq = 1                                                # song changes on DRIVE
+            display.render(ui.feed, display.PAGES.index("gauges"), ui)
+            self.assertIn("NOW PLAYING", drawn)
+            drawn.clear()
+            display.render(ui.feed, display.PAGES.index("spotify"), ui)   # not on MUSIC
+            self.assertNotIn("NOW PLAYING", drawn)
+            p.song_seq = 2                                                # changed while on MUSIC...
+            display.render(ui.feed, display.PAGES.index("spotify"), ui)
+            drawn.clear()
+            display.render(ui.feed, display.PAGES.index("map"), ui)       # ...no late card on MAP
+            self.assertNotIn("NOW PLAYING", drawn)
+            ui._card_until = 0
+            p.song_seq = 3
+            display.render(ui.feed, display.PAGES.index("map"), ui)       # but a new change on MAP: yes
+            self.assertIn("NOW PLAYING", drawn)
+
     def test_broken_page_shows_an_error_not_a_crash(self):
         with mock.patch.object(display, "page_gauges", side_effect=NameError("x")):
             self.assertEqual(display.render(FakeFeed(True), display.PAGES.index("gauges")).shape, (480, 800, 3))

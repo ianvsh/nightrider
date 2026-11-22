@@ -1,6 +1,7 @@
 """spotify.Watchdog decisions, with the player, network and systemctl faked."""
 import os
 import sys
+import time
 import unittest
 from unittest import mock
 
@@ -371,3 +372,87 @@ class WantedPlayTest(unittest.TestCase):
         with mock.patch.object(spotify.threading, "Thread", T), mock.patch.object(spotify.time, "sleep", lambda s: None):
             p._do("", fn, play=True)
         self.assertIsNone(p._wanted)
+
+
+class KeepUpTest(unittest.TestCase):
+    """2026-11-22: the MUSIC tab showed the wrong song and was slow. The cache is read often
+    (local, free); Spotify's servers are asked only when the cache is clearly stale, rationed."""
+
+    def song(self, sid, playing=True, progress=1000, dur=200000):
+        return {"item": {"id": sid, "name": f"Song {sid}", "type": "track", "duration_ms": dur,
+                         "artists": [{"name": "Band"}]},
+                "is_playing": playing, "progress_ms": progress, "device": {"name": spotify.DEVICE}}
+
+    def setUp(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        self.cli = self.song("A")
+        self.web_calls = []
+        self.web_answer = self.song("B", progress=500)
+
+        def web(method, path, token, body=None, **params):
+            self.web_calls.append(path)
+            return self.web_answer
+        for p in (mock.patch.object(spotify, "BLOCK_FILE", os.path.join(d, "blocked")),
+                  mock.patch.object(spotify, "get", lambda key, timeout=15: self.cli),
+                  mock.patch.object(spotify, "web", web),
+                  mock.patch.object(spotify, "_token", lambda: "t"),
+                  mock.patch.object(spotify, "is_liked", lambda tid: False),
+                  mock.patch.object(spotify.taste, "record_play", lambda *a, **k: None)):
+            p.start()
+            self.addCleanup(p.stop)
+        with mock.patch.object(spotify.threading, "Thread"):
+            self.p = spotify.Player(log=lambda m: None)
+        self.p._poll_once()
+
+    def test_reads_the_cache_often_and_fast_after_a_tap(self):
+        self.assertEqual(self.p._next_wait(), spotify.POLL_HIDDEN)       # was 15 s off the MUSIC tab
+        self.p.visible = True
+        self.assertEqual(self.p._next_wait(), spotify.POLL_SHOWN)
+        self.p._follow("skip")
+        self.assertEqual(self.p._next_wait(), spotify.FOLLOW_EVERY)
+        self.cli = self.song("C")                                       # the skip shows up
+        self.p._poll_once()
+        self.assertEqual(self.p.title, "Song C")
+        self.assertEqual(self.p._next_wait(), spotify.POLL_SHOWN)       # back to normal at once
+        self.assertEqual(self.web_calls, [])                            # no server call needed
+
+    def test_skip_that_never_shows_asks_spotify_once_then_ignores_the_stale_cache(self):
+        self.p._follow("skip")
+        self.p._follow_until = 0                                        # 3 s passed, still song A
+        self.p._poll_once()
+        self.assertEqual(self.web_calls, ["me/player"])
+        self.assertEqual(self.p.title, "Song B")
+        self.assertEqual(self.p.song_seq, 1)                            # the song card shows
+        self.p._poll_once()                                             # cache still says A:
+        self.assertEqual(self.p.title, "Song B")                        # not shown again
+        self.cli = self.song("D")                                       # cache catches up
+        self.p._poll_once()
+        self.assertEqual(self.p.title, "Song D")
+
+    def test_server_checks_are_rationed_and_never_while_blocked(self):
+        self.p._ask_spotify("test")
+        self.p._ask_spotify("test")                                     # within TRUTH_EVERY
+        self.assertEqual(len(self.web_calls), 1)
+        self.p._truths = [time.monotonic() - 3000 + i for i in range(spotify.TRUTH_PER_HOUR)]
+        self.p._ask_spotify("test")                                     # hourly cap reached
+        self.assertEqual(len(self.web_calls), 1)
+        self.p._truths = []
+        with open(spotify.BLOCK_FILE, "w") as f:
+            f.write(str(time.time() + 600))
+        self.p._ask_spotify("test")
+        self.assertEqual(len(self.web_calls), 1)
+
+    def test_song_past_its_end_is_checked(self):
+        self.cli = self.song("A", progress=209000)                      # 9 s past a 200 s song
+        self.p._poll_once()
+        self.assertEqual(self.web_calls, ["me/player"])
+        self.assertEqual(self.p.title, "Song B")
+
+    def test_stale_but_answering_player_counts_as_healthy(self):
+        seen = []
+        self.p.watchdog = mock.Mock()
+        self.p._watch = lambda fine: seen.append(fine)
+        self.p._stale_cli, self.p._stale_since = "A", time.monotonic()
+        self.p._poll_once()
+        self.assertEqual(seen, [True])                                  # no restart for a stale cache

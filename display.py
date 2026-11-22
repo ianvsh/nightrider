@@ -1685,11 +1685,45 @@ def render(feed, page, ui=None):
         term = draw_page(img, d, feed, name, ui)
     except Exception as e:                 # a broken page must never take the whole screen down
         page_error(img, d, name, e)
+    try:
+        song_card(img, d, name, ui)
+    except Exception as e:
+        page_error(img, d, "song card", e)
     out = to_panel(img)
     return overlay(out, term, TERM_X, TERM_Y, TERM_SCALE) if term else out
 
 
 _errors_logged = {}
+CARD_SECS = 5                              # the new-song card on DRIVE / MAP
+CARD_PAGES = ("gauges", "map")
+CARD = (14, LH - 47, LW - 15, LH - 8)
+
+
+def song_card(img, d, name, ui):
+    """When the song changes while DRIVE or MAP shows: a small card with the new song for
+    CARD_SECS. Changes seen on other pages (picked on MUSIC, say) don't pop one up later."""
+    p = getattr(ui, "player", None) if ui else None
+    if p is None:
+        return
+    seq = getattr(p, "song_seq", 0)
+    now = time.monotonic()
+    if getattr(ui, "_card_seq", None) is None:
+        ui._card_seq, ui._card_until = seq, 0.0        # what was playing at start-up: no card
+    elif seq != ui._card_seq:
+        ui._card_seq = seq
+        ui._card_until = now + CARD_SECS if name in CARD_PAGES and not ui.stack else 0.0
+    if name not in CARD_PAGES or now >= getattr(ui, "_card_until", 0.0) or not p.title:
+        return
+    x0, y0, x1, y1 = CARD
+    d.rectangle(CARD, fill=BG, outline=AMBER)
+    d.rectangle([x0 + 1, y0 + 1, x1 - 1, y1 - 1], outline=FAINT)
+    text(img, x0 + 5, y0 + 4, "NOW PLAYING", DIM)
+    chars = (x1 - x0 - 10) // 12
+    title = plain(p.title)
+    text(img, x0 + 5, y0 + 13, title if len(title) <= chars else title[:chars - 1].rstrip(" ,.-") + ".", WHITE, scale=2, upper=False)
+    art = plain(p.artist)
+    chars = (x1 - x0 - 10) // 6
+    text(img, x0 + 5, y1 - 10, art if len(art) <= chars else art[:chars - 1].rstrip(" ,.-") + ".", GREEN, upper=False)
 
 
 def page_error(img, d, name, e):
