@@ -2,7 +2,8 @@
 # Move your data from an old Nightrider (or Data Logger) Pi to this one, after
 # install.sh. Run on the NEW Pi:   system/migrate.sh <user>@<old-pi>
 # Copies over SSH (asks for the old Pi's password): drive log, settings, music
-# taste, maps/search/routing (saves rebuilding them), Spotify and Claude logins.
+# taste, maps/search/routing (saves rebuilding them), Spotify and Claude logins,
+# saved Wi-Fi networks and the 4G profile.
 # The old Pi keeps its copies. Stop using the old Pi afterwards: Spotify and Claude
 # logins can't be active on two Pis at once.
 set -euo pipefail
@@ -49,6 +50,23 @@ if $SSH "$OLD" "[ -f .claude/.credentials.json ]"; then
     r "$OLD:.claude/.credentials.json" "$HOME/.claude/"
     $SSH "$OLD" "[ -f .claude.json ]" && [ ! -f "$HOME/.claude.json" ] && r "$OLD:.claude.json" "$HOME/"
 fi
+
+echo "== saved Wi-Fi networks + 4G profile (not the old hotspot; ones already here are kept)"
+tmp=$(mktemp -d)
+$SSH "$OLD" "sudo -n tar -C /etc/NetworkManager/system-connections -cf - ." > "$tmp/nm.tar" 2>/dev/null || true
+if [ -s "$tmp/nm.tar" ]; then
+    mkdir "$tmp/nm" && tar -C "$tmp/nm" -xf "$tmp/nm.tar"
+    for f in "$tmp"/nm/*.nmconnection; do
+        id=$(sed -n 's/^id=//p' "$f" | head -1)
+        case $id in *-hotspot) continue ;; esac
+        grep -qE '^type=(wifi|ethernet)' "$f" || continue
+        if nmcli -t -f NAME c show | grep -qxF "$id"; then echo "  have $id"; continue; fi
+        sudo install -m 600 -o root -g root "$f" "/etc/NetworkManager/system-connections/$(basename "$f")"
+        echo "  added $id"
+    done
+    sudo nmcli c reload
+fi
+rm -rf "$tmp"
 
 sudo systemctl start spotify nightrider nightrider-display
 echo "== done. Turn the old Pi off (or stop its spotify service) so the logins aren't shared."
