@@ -1,0 +1,12 @@
+[Unit]
+Description=Back to the text console: stop the Nightrider screen (Ctrl-Alt-Del)
+# Started by Ctrl-Alt-Del (ctrl-alt-del.target, see install.sh) or by the screen's own
+# keyboard reader. The logger, Spotify and the rest keep running. Next boot starts the
+# screen again; or now:  sudo systemctl start nightrider-display
+
+[Service]
+Type=oneshot
+ExecStart=-/bin/systemctl stop nightrider-display.service nightrider-splash.service
+ExecStart=/bin/sh -c 'for v in /sys/class/vtconsole/vtcon*; do grep -q "frame buffer" $v/name && echo 1 > $v/bind; done; true'
+ExecStart=-/bin/chvt 1
+ExecStart=-/bin/systemctl start getty@tty1.service

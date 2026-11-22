@@ -349,6 +349,12 @@ def is_keyboard(dev, ec):
     return all(k in keys for k in (ec.KEY_A, ec.KEY_Z, ec.KEY_ENTER, ec.KEY_SPACE))
 
 
+def is_escape(name, mods):
+    """Ctrl + Alt + Delete (either Ctrl/Alt key): the way back to the text console."""
+    mods = set(mods)
+    return name == "DELETE" and "ctrl" in mods and "alt" in mods
+
+
 class Keyboards:
     """Finds USB/Bluetooth keyboards (plugged in any time) and sends their keys
     to on_key(name, mods, caps). .count = keyboards connected now.
@@ -394,6 +400,18 @@ class Keyboards:
                     pass
             time.sleep(2)
 
+    def escape(self, dev):
+        """Ctrl-Alt-Del: let go of the keyboards and stop the screen (nightrider-console.service).
+        Done here, not in on_key, so it works even when the rest of the screen is broken."""
+        self.log("keyboard: Ctrl-Alt-Del: back to the text console")
+        for d in list(self.devs.values()):
+            try:
+                d.ungrab()
+            except OSError:
+                pass
+        subprocess.Popen(["sudo", "-n", "systemctl", "start", "--no-block", "nightrider-console.service"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
     def held_mods(self, ec):
         """The shared modifiers, minus any no keyboard device has down right now."""
         with self._lock:
@@ -432,6 +450,8 @@ class Keyboards:
                             self.mods[name] = MODS[name]
                         else:
                             self.mods.pop(name, None)
+                elif ev.value == 1 and is_escape(name, self.mods.values()):
+                    self.escape(dev)           # Ctrl-Alt-Del: back to the text console
                 elif ev.value:                 # 1 = press, 2 = auto-repeat
                     if KEYLOG:
                         self.log(f"keyboard: key {name} on {dev.path}")

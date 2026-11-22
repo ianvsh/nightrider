@@ -1,0 +1,7 @@
+[Unit]
+# Installed to /etc/systemd/system: Ctrl-Alt-Del on a keyboard drops to the text
+# console (nightrider-console.service) instead of rebooting.
+Description=Ctrl-Alt-Del: back to the text console (Nightrider)
+Requires=nightrider-console.service
+After=nightrider-console.service
+AllowIsolate=no

@@ -642,6 +642,13 @@ class SpotifyPageTest(unittest.TestCase):
 
 
 class TerminalTest(unittest.TestCase):
+    def test_ctrl_alt_del_is_the_way_out(self):
+        import terminal
+        self.assertTrue(terminal.is_escape("DELETE", {"ctrl", "alt"}))
+        self.assertTrue(terminal.is_escape("DELETE", ["alt", "ctrl", "shift"]))
+        self.assertFalse(terminal.is_escape("DELETE", {"ctrl"}))
+        self.assertFalse(terminal.is_escape("BACKSPACE", {"ctrl", "alt"}))
+
     def test_keys(self):
         import terminal
         k = terminal.key_bytes

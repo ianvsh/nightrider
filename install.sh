@@ -136,6 +136,9 @@ sudo install -m 644 "$APP/system/journald-nightrider.conf" /etc/systemd/journald
 sudo install -m 644 "$APP/system/99-dme-latency.rules" /etc/udev/rules.d/99-dme-latency.rules
 sudo install -m 644 "$APP/system/wifi-powersave-off.conf" /etc/NetworkManager/conf.d/wifi-powersave-off.conf
 sudo install -m 644 "$APP/system/sshd-keepalive.conf" /etc/ssh/sshd_config.d/nightrider-keepalive.conf
+# Ctrl-Alt-Del = back to the text console (stops the screen), never a reboot
+sudo install -m 644 "$APP/system/nightrider-console.service" /etc/systemd/system/nightrider-console.service
+sudo install -m 644 "$APP/system/ctrl-alt-del.target" /etc/systemd/system/ctrl-alt-del.target
 
 # Spotify config: written by setup.sh (needs your client ID). Keep an existing one.
 if [ ! -f "$H/.config/spotify-player/app.toml" ]; then
