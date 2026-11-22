@@ -206,6 +206,47 @@ class ScreensTest(unittest.TestCase):
         self.assertIsInstance(ui.stack[-1], gas.NumPad)
         self.assertEqual(ui.render().shape, (480, 800, 3))
 
+    def test_units_toggle_every_page_still_draws(self):
+        """2026-11-21: METRIC crashed the screen at every start (a missing constant). Draw the
+        DRIVE page and the GAS screen in every unit combination, through the real taps."""
+        import gas
+        import screens
+
+        class Settings:
+            settings = {"speed_unit": "mph", "fuel_units": "imperial", "layout": "classic"}
+            def change(self, **kw):
+                self.settings.update(kw)
+        feed = FakeFeed(True)
+        feed.fuel = {"now_mpg": 24.3, "now_gph": 1.1, "drive": {"session": None, "miles": 3.2, "gallons": 0.13, "mpg": 24.6},
+                     "tank": {"miles": 3.2, "gallons": 0.13, "mpg": 24.6}, "factor": 1.0,
+                     "range": {"miles": 120, "to_light": 90, "gallons_left": 5.0},
+                     "fills": [{"ts": time.time(), "gallons": 12.3, "mpg": 15.8}]}
+        ui = display.UI(feed)
+        ui.screen = Settings()
+        ui.cal = screens.Calibration([[1, 0], [0, 1], [0, 0]])
+        try:
+            for _ in range(2):
+                x0, y0, x1, y1 = display.MPG_TAP
+                ui.tap(((x0 + x1) // 2, (y0 + y1) // 2))                    # GAS screen
+                self.assertIsInstance(ui.stack[-1], gas.GasScreen)
+                ui.tap(gas.GasScreen.UNITS[:2])                              # IMPERIAL <-> METRIC
+                with mock.patch.object(display, "page_error", side_effect=AssertionError):
+                    ui.render()
+                    ui.tap(gas.GasScreen.FILL[:2])                           # number pad in L / GAL
+                    ui.render()
+                    ui.stack.clear()
+                    for _ in range(2):
+                        x0, y0, x1, y1 = display.SPEED_TAP
+                        ui.tap(((x0 + x1) // 2, (y0 + y1) // 2))            # mph <-> km/h
+                        ui.render()
+            self.assertEqual(ui.screen.settings["fuel_units"], "imperial")  # toggled twice
+        finally:
+            display.set_units(None, speed_unit="mph", fuel_units="imperial")
+
+    def test_broken_page_shows_an_error_not_a_crash(self):
+        with mock.patch.object(display, "page_gauges", side_effect=NameError("x")):
+            self.assertEqual(display.render(FakeFeed(True), display.PAGES.index("gauges")).shape, (480, 800, 3))
+
     def test_status_page_taps(self):
         import screens
         ui = display.UI(FakeFeed(False))

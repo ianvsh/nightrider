@@ -476,6 +476,9 @@ def airflow_trace(img, d, feed, live, data, y=131, x0=4, x1=LW - 5):
         d.line(pts, fill=GREEN)
 
 
+GAL_TO_L, MPG_TO_KML = 3.785411784, 0.425143707
+
+
 def set_units(settings, **kw):
     """speed_unit="mph"/"kmh", fuel_units="imperial"/"metric": change now and save (screen.json)."""
     global MPH, METRIC_FUEL
@@ -1678,6 +1681,35 @@ def render(feed, page, ui=None):
     tab_bar(img, d, feed, page, ui)
     name = PAGES[page]
     term = None
+    try:
+        term = draw_page(img, d, feed, name, ui)
+    except Exception as e:                 # a broken page must never take the whole screen down
+        page_error(img, d, name, e)
+    out = to_panel(img)
+    return overlay(out, term, TERM_X, TERM_Y, TERM_SCALE) if term else out
+
+
+_errors_logged = {}
+
+
+def page_error(img, d, name, e):
+    """Draw a short error in place of a page that raised, and log it (once a minute per page)."""
+    import traceback
+    now = time.monotonic()
+    if now - _errors_logged.get(name, -99) > 60:
+        _errors_logged[name] = now
+        print(time.strftime("%H:%M:%S"), f"display: {name} page failed:", flush=True)
+        traceback.print_exc()
+    d.rectangle([0, TOP + 1, LW - 1, LH - 1], fill=BG)
+    text(img, 4, TOP + 6, f"{name.upper()} PAGE ERROR", RED, scale=2)
+    for i, line in enumerate(wrap(f"{type(e).__name__}: {e}", 42)[:6]):
+        text(img, 4, TOP + 28 + i * 9, line, DIM, upper=False)
+    text(img, 4, LH - 10, "OTHER TABS STILL WORK. DETAILS IN THE LOG.", DIM)
+
+
+def draw_page(img, d, feed, name, ui):
+    """Draw one page under the tab bar; returns the TERM page's overlay (or None)."""
+    term = None
     if name == "status":
         page_status(img, d, feed, ui)
     elif name == "claude":
@@ -1693,8 +1725,7 @@ def render(feed, page, ui=None):
             page_gauges(img, d, feed, ui)
         else:
             page_more(img, d, feed)
-    out = to_panel(img)
-    return overlay(out, term, TERM_X, TERM_Y, TERM_SCALE) if term else out
+    return term
 
 
 class UI(screens.Pressable):
@@ -1958,7 +1989,13 @@ class UI(screens.Pressable):
         if not self.stack:
             return render(self.feed, self.page, self)
         img = Image.new("RGB", (LW, LH), BG)
-        self.stack[-1].render(img, ImageDraw.Draw(img))
+        d = ImageDraw.Draw(img)
+        try:
+            self.stack[-1].render(img, d)
+        except Exception as e:             # same for a full-screen screen: close it next tap
+            page_error(img, d, type(self.stack[-1]).__name__, e)
+            text(img, LW - 4, 2, "TAP TO CLOSE", AMBER, align="r")
+            self.stack[-1].tap = lambda x, y: "close"
         return to_panel(img)
 
 
