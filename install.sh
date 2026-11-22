@@ -145,7 +145,7 @@ fi
 
 # Fallback hotspot (phone app with no other Wi-Fi). Password made once, shown at the end.
 if ! nmcli -t -f NAME c show | grep -qx nightrider-hotspot; then
-    PSK=$(tr -dc 'a-km-z2-9' < /dev/urandom | head -c 12)
+    PSK=$(python3 -c "import secrets; print(''.join(secrets.choice('abcdefghijkmnopqrstuvwxyz23456789') for _ in range(12)))")
     sudo nmcli c add type wifi ifname wlan0 con-name nightrider-hotspot autoconnect no \
         ssid Nightrider mode ap 802-11-wireless.band a 802-11-wireless.channel 36 \
         ipv4.method shared ipv4.addresses 10.42.0.1/24 ipv6.method disabled \
