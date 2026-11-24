@@ -1671,9 +1671,9 @@ class LetterScreen(screens.Pressable):
 
 class LocalArtistScreen(screens.Pressable):
     """One artist's songs, album by album (oldest first): an album's name heads its songs.
-    Tap a song = it plays and the artist's songs carry on after it (shuffled if the USB
-    music's SHUFFLE is on); tap an album's name = the album from its first song; SHUFFLE =
-    this artist shuffled. Opens on the playing song's page."""
+    Tap a song = it plays and the artist's songs carry on after it (the whole stick shuffled
+    if the USB music's SHUFFLE is on); tap an album's name = the album from its first song;
+    SHUFFLE = the whole stick shuffled, starting with this artist. Opens on the playing song's page."""
     BACK = (0, 0, 56, 18)
     SHUFFLE = (LW - 70, 0, LW - 1, 18)
     UP = (0, 138, 116, 159)
@@ -1710,7 +1710,8 @@ class LocalArtistScreen(screens.Pressable):
         if inside(self.SHUFFLE, x, y) and self.rows:
             self.press("shuffle")
             self.music.local.shuffle = True
-            self.music.play_local(["artist", self.artist])
+            songs = self.music.local._context_songs(["artist", self.artist])
+            self.music.play_local(["artist", self.artist], random.choice(songs) if songs else None)
             return "done"
         if inside(self.UP, x, y):
             self.press("up")

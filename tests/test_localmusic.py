@@ -179,6 +179,31 @@ class PlayerTest(unittest.TestCase):
         names = [s["title"] for s in self.lib.all_songs()]
         self.assertEqual(names.index(p.title), (names.index(cur) + 1) % 10)
 
+    def test_shuffle_plays_the_whole_stick_and_off_goes_back_to_the_artist(self):
+        p = self.p
+        p.play(["artist", "Aa"], 1)
+        p.toggle_shuffle()
+        self.assertEqual((p.title, p.context, p.home), ("Aa2", ["all"], ["artist", "Aa"]))
+        seen = {p.title}
+        for _ in range(9):
+            p.next()
+            seen.add(p.title)
+        self.assertEqual(len(seen), 10)        # the whole stick, not just Aa
+        while p.artist != "Aa":
+            p.next()
+        cur = p.title
+        p.toggle_shuffle()
+        self.assertEqual((p.context, p.home), (["artist", "Aa"], None))
+        aa = [s["title"] for s in self.lib.songs["Aa"]]
+        p.next()
+        self.assertEqual(p.title, aa[(aa.index(cur) + 1) % len(aa)])
+
+    def test_picking_a_song_while_shuffling_shuffles_everything_after_it(self):
+        p = self.p
+        p.shuffle = True
+        p.play_song(["artist", "Bb"], self.lib.songs["Bb"][0])
+        self.assertEqual((p.title, p.context, len(p.queue)), (self.lib.songs["Bb"][0]["title"], ["all"], 10))
+
     def test_pause_resume_and_progress(self):
         p = self.p
         p.play(["artist", "Bb"])
@@ -423,7 +448,9 @@ class ScreensTest(unittest.TestCase):
         self.assertEqual((self.local.context, self.local.title), (["album", "ABBA", "Second"], "ABBA song 3"))
         ui.stack[:] = [D.LocalArtistScreen(ui.music, "ABBA")]
         ui.tap((D.LW - 20, 8))
-        self.assertEqual((self.local.context, self.local.shuffle, ui.stack), (["artist", "ABBA"], True, []))
+        self.assertEqual((self.local.context, self.local.home, self.local.shuffle, ui.stack),
+                         (["all"], ["artist", "ABBA"], True, []))
+        self.assertEqual(self.local.artist, "ABBA")          # starts with the artist, then everything
 
     def test_music_page_and_drive_card_for_usb_music(self):
         D, ui = self.display, self.ui
