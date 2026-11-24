@@ -6,6 +6,7 @@ Motronic DME, on a Raspberry Pi (built on a 924S):
 - logs live engine data from the DME (RPM, timing, airflow, O2, temps...) to SQLite
 - 5" touchscreen dash: gauges, trip totals, gas and MPG, GPS map and navigation
 - Spotify Connect player (via spotify_player), over AUX or Bluetooth to the stereo
+- MP3s from a USB stick: browse artists and albums, own shuffle (MUSIC > LIBRARY)
 - Claude voice assistant: ask about the car, the last drive, or for music
 - phone web app over Wi-Fi or Bluetooth LE (`PROTOCOL.md`)
 - built-in terminal for a USB/Bluetooth keyboard

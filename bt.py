@@ -41,6 +41,7 @@ ASOUNDRC = os.path.expanduser("~/.asoundrc")      # the old way to route (pointe
 OUTPUTS = {"bluetooth": "tap_bt", "aux": "tap"}     # /etc/asound.conf PCM the Bridge plays to, per route
 MIX_CAPTURE = "hw:Loopback,1,1"                     # Spotify's channel ("default" = hw:Loopback,0,1)
 VOICE_CAPTURE = "hw:Loopback,1,2"                   # the voice's channel ("voicebus" = hw:Loopback,0,2)
+LOCAL_CAPTURE = "hw:Loopback,1,3"                   # USB-stick music ("localbus" = hw:Loopback,0,3, localmusic.py)
 BLUEZ = "org.bluez"
 AGENT = "/nightrider/agent"
 A2DP_SINK = "0000110b-0000-1000-8000-00805f9b34fb"
@@ -298,6 +299,8 @@ class Bridge:
                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
             voice = subprocess.Popen(["arecord", *self.FMT, "-D", VOICE_CAPTURE, "--buffer-time=200000"],
                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            local = subprocess.Popen(["arecord", *self.FMT, "-D", LOCAL_CAPTURE, "--buffer-time=200000"],
+                                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
             play = subprocess.Popen(["aplay", *self.FMT, "-D", out, "--buffer-time=500000"],
                                     stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
         except OSError as e:
@@ -305,13 +308,13 @@ class Bridge:
             self.stop()
             self.out = out                         # still wanted: alive() is False, the Router retries
             return
-        self._procs = [music, voice, play]
-        self._thread = threading.Thread(target=self._mix, args=(music, voice, play, self._stop), daemon=True)
+        self._procs = [music, voice, play, local]
+        self._thread = threading.Thread(target=self._mix, args=(music, voice, play, self._stop, local), daemon=True)
         self._thread.start()
 
-    def _mix(self, music, voice, play, stop):
+    def _mix(self, music, voice, play, stop, local=None):
         import numpy as np
-        voice_ok = True
+        extra = [[voice, "voice"]] + ([[local, "USB music"]] if local else [])
         try:
             while not stop.is_set():
                 a = music.stdout.read(self.CHUNK)
@@ -319,14 +322,21 @@ class Bridge:
                     return                         # music capture gone: alive() goes False
                 if a.strip(b"\x00"):                # any non-zero sample (cheap: no numpy)
                     self.heard_at = time.monotonic()
-                if voice_ok:
-                    b = voice.stdout.read(self.CHUNK)
-                    if len(b) == self.CHUNK:
-                        x = np.frombuffer(a, np.int16).astype(np.int32) + np.frombuffer(b, np.int16)
-                        a = np.clip(x, -32768, 32767).astype(np.int16).tobytes()
-                    else:
-                        voice_ok = False           # voice channel broke: music on alone
-                        self.log("audio: voice channel stopped; music carries on")
+                x = None
+                for ch in extra:
+                    if ch[0] is None:
+                        continue
+                    b = ch[0].stdout.read(self.CHUNK)
+                    if len(b) != self.CHUNK:
+                        ch[0] = None               # that channel broke: the rest carry on
+                        self.log(f"audio: {ch[1]} channel stopped; music carries on")
+                        continue
+                    if b.strip(b"\x00"):            # silent channel: nothing to add
+                        if x is None:
+                            x = np.frombuffer(a, np.int16).astype(np.int32)
+                        x = x + np.frombuffer(b, np.int16)
+                if x is not None:
+                    a = np.clip(x, -32768, 32767).astype(np.int16).tobytes()
                 play.stdin.write(a)
         except (OSError, ValueError):
             pass                                   # output gone (stereo dropped)
@@ -383,6 +393,8 @@ class Router:
         self.error = ""
         self._rate_pcm, self._rate_checks, self._rate_at = None, 0, 0.0    # sample-rate checks (_step)
         self._held = False                 # music was playing when the stereo went: resume when it's back
+        self.local = None                  # localmusic.LocalPlayer: USB music pauses with the stereo too
+        self._local_held = False
         self._via, self._via_at, self._quality_at = None, 0.0, -1e9     # internet link + since when
         self._start_bt()
         self.settings = load()
@@ -505,10 +517,17 @@ class Router:
                 self._held = bool(p and p.playing and p.device == spotify.DEVICE)
                 self.log("bluetooth: stereo gone: pausing the music" + (" (resumes when it's back)" if self._held else ""))
                 self._pause()
+                lp = getattr(self, "local", None)
+                self._local_held = bool(lp and lp.playing)
+                if self._local_held:
+                    lp.pause()
                 self._switch(route, resume=False, lost=True)
             else:
                 self._switch(route, resume=True if route == "bluetooth" and self._held else None)
                 self._held = False
+                if getattr(self, "_local_held", False) and route == "bluetooth" and self.local:
+                    self.local.resume()
+                self._local_held = False
         elif lost:
             if self.bridge.out:                # BLUETOOTH chosen with the stereo away: no sound anywhere
                 self.bridge.stop()
@@ -526,6 +545,10 @@ class Router:
 
     def _keep_paused(self):
         """Stereo gone: anything that starts playing (a resume, a tap) is paused again."""
+        lp = getattr(self, "local", None)
+        if lp and lp.playing:
+            self.log("bluetooth: stereo not connected: pausing USB music")
+            lp.pause()
         p = self.player
         if p and p.playing and p.device == spotify.DEVICE and not p.error and time.monotonic() - p.at < 10:
             self.log("bluetooth: stereo not connected: pausing")

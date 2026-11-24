@@ -186,9 +186,14 @@ class MusicHold:
         self.player = player
         self.log = log
         self.resume = False                # music was playing: play again after
+        self.local = None                  # localmusic.LocalPlayer (USB music): paused / resumed the same way
+        self.local_resume = False
 
     def pause(self):
         import spotify
+        if self.local and self.local.playing:
+            self.local_resume = True
+            self.local.pause()
         p = self.player
         if not (p and p.playing):
             return
@@ -205,6 +210,10 @@ class MusicHold:
 
     def release(self):
         import spotify
+        if self.local_resume:
+            self.local_resume = False
+            if self.local:
+                self.local.resume()
         resume, self.resume = self.resume, False
         if not resume:
             return

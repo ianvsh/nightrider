@@ -50,13 +50,13 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq \
     python3-serial python3-dbus python3-gi python3-pil python3-evdev python3-numpy python3-venv \
     python3-pyosmium osmium-tool fonts-dejavu-core git sqlite3 rsync curl ca-certificates \
     bluez bluez-alsa-utils libasound2-plugin-bluez alsa-utils tmux iw rfkill network-manager \
-    espeak-ng flite bubblewrap socat
+    espeak-ng flite bubblewrap socat mpg123
 sudo usermod -aG dialout,bluetooth,video,input,audio,netdev "$U"
 
 # ---------------------------------------------------------------- python venv
-say "Python venv (faster-whisper, pyte, piper, valhalla)"
+say "Python venv (faster-whisper, pyte, piper, valhalla, mutagen)"
 [ -x "$APP/.venv/bin/python" ] || python3 -m venv --system-site-packages "$APP/.venv"
-"$APP/.venv/bin/pip" install -q --upgrade faster-whisper==1.2.1 pyte==0.8.2 piper-tts==1.8.0 pyvalhalla==3.9.1
+"$APP/.venv/bin/pip" install -q --upgrade faster-whisper==1.2.1 pyte==0.8.2 piper-tts==1.8.0 pyvalhalla==3.9.1 mutagen==1.47.0
 
 if [ $WITH_VOICES = 1 ]; then
     say "Speech models (whisper base.en + small.en, Piper voices) - a few hundred MB"
@@ -134,6 +134,7 @@ sudo install -d /etc/systemd/system/bluealsa.service.d /etc/systemd/journald.con
 sudo install -m 644 "$APP/system/bluealsa-nightrider.conf" /etc/systemd/system/bluealsa.service.d/nightrider.conf
 sudo install -m 644 "$APP/system/journald-nightrider.conf" /etc/systemd/journald.conf.d/nightrider.conf
 sudo install -m 644 "$APP/system/99-dme-latency.rules" /etc/udev/rules.d/99-dme-latency.rules
+sudo install -m 644 "$APP/system/90-nightrider-usb.rules" /etc/udev/rules.d/90-nightrider-usb.rules   # USB music sticks, read-only
 sudo install -m 644 "$APP/system/wifi-powersave-off.conf" /etc/NetworkManager/conf.d/wifi-powersave-off.conf
 sudo install -m 644 "$APP/system/sshd-keepalive.conf" /etc/ssh/sshd_config.d/nightrider-keepalive.conf
 # Ctrl-Alt-Del = back to the text console (stops the screen), never a reboot

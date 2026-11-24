@@ -826,7 +826,8 @@ def layout_mapmusic(img, d, feed, ui=None):
     map_panel(img, d, feed, ui, MAPMUSIC_MAP)
     side_gauges(img, d, feed, SIDE_X, TOP + 3, ("coolant_c",))
     d.line([0, 118, LW, 118], fill=FAINT)
-    p = ui.player if ui else None
+    music = getattr(ui, "music", None) if ui else None
+    p = music.active if music else (ui.player if ui else None)
     if not p or not p.item:
         text(img, LW // 2, 132, "NOTHING PLAYING - TAP FOR MUSIC" if p else "NO MUSIC", DIM, align="c")
     else:
@@ -1204,7 +1205,9 @@ class Visualiser:
 
 
 def page_spotify(img, d, ui):
-    p = ui.player
+    music = getattr(ui, "music", None)
+    p = music.active if music else ui.player
+    local = bool(music and p is music.local and p is not None)
     if p is None:
         text(img, LW // 2, 80, "SPOTIFY IS NOT AVAILABLE", DIM, align="c")
         return
@@ -1220,9 +1223,11 @@ def page_spotify(img, d, ui):
                 text(img, 4, TOP + 11, clip(" ".join(lines[1:]), 39), GREEN, upper=False)
         text(img, 4, TOP + 21, clip(p.artist, 38), AMBER, upper=False)
         album = p.album
-        if p.device and p.device != spotify.DEVICE:              # only worth saying when it's elsewhere
+        if local:
+            album = f"USB: {album}" if album else "USB"
+        elif p.device and p.device != spotify.DEVICE:              # only worth saying when it's elsewhere
             album = f"ON {p.device.upper()}"
-        text(img, 4, TOP + 30, clip(album, 38), DIM, upper=album.startswith("ON "))
+        text(img, 4, TOP + 30, clip(album, 38), DIM, upper=album.startswith("ON ") and not local)
         if p.show_heart:                                         # only for songs not in Liked Songs
             liked, cx, cy = p.heart, (HEART_BTN[0] + HEART_BTN[2] + 1) // 2, (HEART_BTN[1] + HEART_BTN[3] + 1) // 2
             if lit("heart"):
@@ -1241,16 +1246,20 @@ def page_spotify(img, d, ui):
                 d.rectangle([x0 + 1, y + 1, x0 + 1 + w, y + 2], fill=GREEN if p.playing else DIM)
         text(img, x0, 116, spotify.mmss(p.progress), DIM)
         text(img, x1, 116, spotify.mmss(p.duration), DIM, align="r")
+    elif local:
+        text(img, LW // 2, TOP + 20, "NOTHING PLAYING", GREEN, scale=2, align="c")
+        text(img, LW // 2, TOP + 44, "PLAY = ALL YOUR USB MUSIC, SHUFFLED", DIM, align="c")
+        text(img, LW // 2, TOP + 54, "OR PICK FROM LIBRARY", DIM, align="c")
     elif not p.polled:
         text(img, LW // 2, 70, "CONNECTING TO SPOTIFY...", DIM, align="c")
     else:
         text(img, LW // 2, TOP + 20, "NOTHING PLAYING", GREEN, scale=2, align="c")
         text(img, LW // 2, TOP + 44, "PLAY = YOUR LIKED SONGS, SHUFFLED", DIM, align="c")
-        text(img, LW // 2, TOP + 54, "OR PICK FROM PLAYLISTS", DIM, align="c")
+        text(img, LW // 2, TOP + 54, "OR PICK FROM LIBRARY", DIM, align="c")
     problem = p.problem
-    if problem and not problem.startswith("SPOTIFY"):
+    if problem and not problem.startswith("SPOTIFY") and not local:
         problem = "SPOTIFY: " + problem
-    note = p.doing or problem or (ui.suggester.status if ui.suggester else "")
+    note = p.doing or problem or (ui.suggester.status if ui.suggester and not local else "")
     if note:
         d.rectangle([0, 115, LW, 124], fill=BG)
         text(img, LW // 2, 116, clip(note.upper(), 39), RED if problem and not p.doing else AMBER, align="c")
@@ -1258,9 +1267,10 @@ def page_spotify(img, d, ui):
     icon_button(d, PLAY_BTN, "pause" if p.playing else "play", GREEN, lit("play"))
     icon_button(d, SKIP_BTN, "next", GREEN, lit("skip"))
     button(img, d, SHUF_BTN, "SHUFFLE", GREEN, p.shuffle != lit("shuf"))   # filled = shuffle on
-    button(img, d, SUGGEST_BTN, "SUGGEST", GREEN if ui.suggester else FAINT,
-           lit("suggest") or bool(ui.suggester and ui.suggester.busy))   # filled while the picks finish
-    button(img, d, LISTS_BTN, "LISTS", GREEN, lit("lists"))
+    sug = ui.suggester if not local else None              # SUGGEST is Spotify's
+    button(img, d, SUGGEST_BTN, "SUGGEST", GREEN if sug else FAINT,
+           lit("suggest") or bool(sug and sug.busy))   # filled while the picks finish
+    button(img, d, LISTS_BTN, "LIBRARY", GREEN, lit("lists"))
 
 
 # Playlists and their songs, remembered for LIST_CACHE_SECS so opening LISTS or a list again is
@@ -1271,16 +1281,18 @@ _songs = {}                        # playlist id -> (monotonic time, [(uri, titl
 
 
 class PlaylistScreen(screens.Pressable):
-    """Liked songs + Ian's playlists; tap one to open its songs (SongsScreen)."""
+    """MUSIC > LIBRARY: the USB stick's music (with music given), liked songs + Ian's
+    playlists; tap one to open it (LocalArtistsScreen / SongsScreen)."""
     BACK = (0, 0, 56, 18)
     UP = (0, 138, 116, 159)
     DOWN = (LW - 118, 138, LW - 1, 159)
     ROW_Y, ROW_H, ROWS = 22, 23, 5
 
-    def __init__(self, player):
+    def __init__(self, player, music=None):
         super().__init__()
         self.player = player
-        self.rows = [("liked", "LIKED SONGS")]
+        self.music = music if music is not None and music.local else None
+        self.rows = ([("local", "LOCALLY SAVED MUSIC")] if self.music else []) + [("liked", "LIKED SONGS")]
         self.top = 0
         self.status = "LOADING..."
         if _playlists and time.monotonic() - _playlists[0] < LIST_CACHE_SECS:
@@ -1317,19 +1329,26 @@ class PlaylistScreen(screens.Pressable):
             i = self.top + (y - self.ROW_Y) // self.ROW_H
             if i < len(self.rows):
                 self.press(("row", i - self.top))
+                if self.rows[i][0] == "local":
+                    return LocalArtistsScreen(self.music)
                 return SongsScreen(self.player, *self.rows[i])
         return None
 
     def render(self, img, d):
         button(img, d, self.BACK, "< BACK", GREEN, self.lit("back"))
-        text(img, 148, 6, "PLAYLISTS", GREEN, align="c")
+        text(img, 148, 6, "LIBRARY", GREEN, align="c")
         if self.status:
             text(img, LW // 2, 70, self.status, RED if self.status.startswith("ERROR") else DIM, align="c")
         for n, (pid, name) in enumerate(self.rows[self.top:self.top + self.ROWS]):
             y0 = self.ROW_Y + n * self.ROW_H
             d.rectangle((0, y0, LW - 1, y0 + self.ROW_H - 3), outline=FAINT)
-            text(img, 4, y0 + 7, clip(name, 39), AMBER if pid == "liked" else GREEN,
-                 upper=pid == "liked")
+            text(img, 4, y0 + 7, clip(name, 39), AMBER if pid in ("liked", "local") else GREEN,
+                 upper=pid in ("liked", "local"))
+            if pid == "local":
+                lib = self.music.local.library
+                note = (f"INDEXING {lib.total}" if lib.scanning else f"{lib.total} SONGS" if lib.total
+                        else "NO USB STICK" if lib.loaded and not lib.roots else "")
+                text(img, LW - 6, y0 + 7, note, DIM, align="r")
         more = self.top + self.ROWS < len(self.rows)
         button(img, d, self.UP, "UP", GREEN if self.top else FAINT, self.lit("up"))
         button(img, d, self.DOWN, f"DOWN  {min(len(self.rows), self.top + self.ROWS)}/{len(self.rows)}",
@@ -1524,6 +1543,229 @@ class SongsScreen(screens.Pressable):
                GREEN if more else FAINT, self.lit("down"))
 
 
+# ---- USB-stick music (localmusic.py): LIBRARY > LOCALLY SAVED MUSIC ----
+
+def mins(secs):
+    secs = int(secs or 0)
+    return f"{secs // 60}:{secs % 60:02d}" if secs else ""
+
+
+class LocalArtistsScreen(screens.Pressable):
+    """Every artist on the USB stick, A-Z, 7 to a page. A-Z jumps straight to a letter
+    (LetterScreen); SHUFFLE plays the whole stick shuffled; tap an artist for their songs."""
+    BACK = (0, 0, 56, 18)
+    AZ = (LW - 118, 0, LW - 76, 18)
+    SHUFFLE = (LW - 72, 0, LW - 1, 18)
+    UP = (0, 138, 96, 159)
+    DOWN = (LW - 97, 138, LW - 1, 159)
+    ROW_Y, ROW_H, ROWS = 21, 16, 7
+
+    def __init__(self, music, top=0):
+        super().__init__()
+        self.music = music
+        self.lib = music.local.library
+        self.top = top
+
+    def jump(self, ch):
+        i = self.lib.first_of(ch)
+        if i is not None:
+            self.top = i
+
+    def tap(self, x, y):
+        artists = self.lib.artists
+        if inside(self.BACK, x, y):
+            self.press("back")
+            return "close"
+        if inside(self.AZ, x, y) and artists:
+            self.press("az")
+            return LetterScreen(self)
+        if inside(self.SHUFFLE, x, y) and artists:
+            self.press("shuffle")
+            self.music.local.shuffle = True
+            self.music.play_local(["all"])
+            return "done"
+        if inside(self.UP, x, y):
+            self.press("up")
+            self.top = max(0, self.top - self.ROWS)
+        elif inside(self.DOWN, x, y):
+            self.press("down")
+            if self.top + self.ROWS < len(artists):
+                self.top += self.ROWS
+        elif self.ROW_Y <= y < self.ROW_Y + self.ROWS * self.ROW_H:
+            i = self.top + (y - self.ROW_Y) // self.ROW_H
+            if i < len(artists):
+                self.press(("row", i - self.top))
+                return LocalArtistScreen(self.music, artists[i][0])
+        return None
+
+    def render(self, img, d):
+        lib, artists = self.lib, self.lib.artists
+        self.top = max(0, min(self.top, len(artists) - 1))
+        button(img, d, self.BACK, "< BACK", GREEN, self.lit("back"))
+        title = f"INDEXING {lib.total}" if lib.scanning else "USB MUSIC"
+        text(img, (58 + self.AZ[0]) // 2, 6, title, AMBER, align="c")
+        button(img, d, self.AZ, "A-Z", GREEN if artists else FAINT, self.lit("az"))
+        button(img, d, self.SHUFFLE, "SHUFFLE", GREEN if artists else FAINT, self.lit("shuffle"))
+        local = self.music.local
+        now = local.artist if local.song and self.music.source == "local" else None
+        for n, (name, _, count) in enumerate(artists[self.top:self.top + self.ROWS]):
+            y0 = self.ROW_Y + n * self.ROW_H
+            row = (0, y0, LW - 1, y0 + self.ROW_H - 2)
+            if self.lit(("row", n)):
+                d.rectangle(row, fill=FAINT)
+            elif name == now:
+                d.rectangle(row, outline=AMBER)
+            elif n:
+                d.line((0, y0 - 1, LW - 1, y0 - 1), fill=FAINT)
+            text(img, 4, y0 + 4, clip(name, 37), AMBER if name == now else GREEN, upper=False)
+            text(img, LW - 4, y0 + 4, str(count), DIM, align="r")
+        if not artists:
+            msg = ("LOADING..." if not lib.loaded else "INDEXING THE USB STICK..." if lib.scanning
+                   else "NO USB STICK FOUND" if not lib.roots else "NO MP3S ON THE USB STICK")
+            text(img, LW // 2, 60, msg, DIM, align="c")
+            if lib.loaded and not lib.roots:
+                text(img, LW // 2, 74, "PLUG IT IN: SONGS APPEAR AS THEY'RE READ", DIM, align="c")
+        else:
+            last = min(len(artists), self.top + self.ROWS) - 1
+            a, b = artists[self.top][1], artists[last][1]
+            text(img, LW // 2, 145, a if a == b else f"{a}-{b}", AMBER, scale=2, align="c")
+        more = self.top + self.ROWS < len(artists)
+        button(img, d, self.UP, "PAGE UP", GREEN if self.top else FAINT, self.lit("up"))
+        button(img, d, self.DOWN, "PAGE DOWN", GREEN if more else FAINT, self.lit("down"))
+
+
+class LetterScreen(screens.Pressable):
+    """A-Z (and #) in big keys: tap one = the artist list from that letter."""
+    BACK = (0, 0, 56, 18)
+    LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#"
+    COLS, Y0, CW, CH = 7, 22, 38, 34
+
+    def __init__(self, artists_screen):
+        super().__init__()
+        self.target = artists_screen
+        self.have = {a[1] for a in artists_screen.lib.artists}
+
+    def cell(self, i):
+        c, r = i % self.COLS, i // self.COLS
+        return (c * self.CW, self.Y0 + r * self.CH, c * self.CW + self.CW - 3, self.Y0 + r * self.CH + self.CH - 3)
+
+    def tap(self, x, y):
+        if inside(self.BACK, x, y):
+            self.press("back")
+            return "close"
+        for i, ch in enumerate(self.LETTERS):
+            if inside(self.cell(i), x, y) and ch in self.have:
+                self.press(ch)
+                self.target.jump(ch)
+                return "close"
+        return None
+
+    def render(self, img, d):
+        button(img, d, self.BACK, "< BACK", GREEN, self.lit("back"))
+        text(img, LW // 2 + 28, 6, "JUMP TO ARTISTS STARTING WITH", DIM, align="c")
+        for i, ch in enumerate(self.LETTERS):
+            r = self.cell(i)
+            on = ch in self.have
+            button(img, d, r, ch, GREEN if on else FAINT, self.lit(ch), scale=2)
+
+
+class LocalArtistScreen(screens.Pressable):
+    """One artist's songs, album by album (oldest first): an album's name heads its songs.
+    Tap a song = it plays and the artist's songs carry on after it (shuffled if the USB
+    music's SHUFFLE is on); tap an album's name = the album from its first song; SHUFFLE =
+    this artist shuffled. Opens on the playing song's page."""
+    BACK = (0, 0, 56, 18)
+    SHUFFLE = (LW - 70, 0, LW - 1, 18)
+    UP = (0, 138, 116, 159)
+    DOWN = (LW - 118, 138, LW - 1, 159)
+    ROW_Y, ROW_H, ROWS = 21, 14, 8
+    PICK_SECS = 0.25
+    close_all = True
+
+    def __init__(self, music, artist):
+        super().__init__()
+        self.music, self.artist = music, artist
+        self.rows = []                 # ("album", name, year, songs) / ("song", song)
+        for album, year, songs in music.local.library.albums(artist):
+            self.rows.append(("album", album, year, songs))
+            self.rows += [("song", s) for s in songs]
+        self.top = 0
+        self.picked = None
+        song = music.local.song
+        if song and song.get("artist") == artist:
+            i = next((n for n, r in enumerate(self.rows) if r[0] == "song" and r[1]["path"] == song["path"]), None)
+            if i is not None:
+                self.top = i // self.ROWS * self.ROWS
+
+    @property
+    def expired(self):
+        return self.picked is not None and time.monotonic() - self.picked[1] >= self.PICK_SECS
+
+    def tap(self, x, y):
+        if inside(self.BACK, x, y):
+            self.press("back")
+            return "close"
+        if self.picked:
+            return None
+        if inside(self.SHUFFLE, x, y) and self.rows:
+            self.press("shuffle")
+            self.music.local.shuffle = True
+            self.music.play_local(["artist", self.artist])
+            return "done"
+        if inside(self.UP, x, y):
+            self.press("up")
+            self.top = max(0, self.top - self.ROWS)
+        elif inside(self.DOWN, x, y):
+            self.press("down")
+            if self.top + self.ROWS < len(self.rows):
+                self.top += self.ROWS
+        elif self.ROW_Y <= y < self.ROW_Y + self.ROWS * self.ROW_H:
+            i = self.top + (y - self.ROW_Y) // self.ROW_H
+            if i < len(self.rows):
+                r = self.rows[i]
+                if r[0] == "album":
+                    self.music.play_local(["album", self.artist, r[1]], r[3][0])
+                else:
+                    self.music.play_local(["artist", self.artist], r[1])
+                self.picked = (i, time.monotonic())
+        return None
+
+    def render(self, img, d):
+        button(img, d, self.BACK, "< BACK", GREEN, self.lit("back"))
+        text(img, (60 + self.SHUFFLE[0]) // 2, 6, clip(plain(self.artist), 22), AMBER, align="c", upper=False)
+        button(img, d, self.SHUFFLE, "SHUFFLE", GREEN, self.lit("shuffle"))
+        local = self.music.local
+        now = (local.song or {}).get("path") if self.music.source == "local" else None
+        for n, r in enumerate(self.rows[self.top:self.top + self.ROWS]):
+            y0 = self.ROW_Y + n * self.ROW_H
+            row = (0, y0, LW - 1, y0 + self.ROW_H - 2)
+            picked = self.picked and self.picked[0] == self.top + n
+            if r[0] == "album":
+                d.rectangle(row, fill=AMBER if picked else FAINT)
+                fg = BG if picked else AMBER
+                text(img, 3, y0 + 4, clip(plain(r[1]) or "(NO ALBUM)", 36), fg, upper=False)
+                if r[2]:
+                    text(img, LW - 4, y0 + 4, str(r[2]), BG if picked else DIM, align="r")
+                continue
+            s = r[1]
+            playing = s["path"] == now
+            if picked:
+                d.rectangle(row, fill=AMBER)
+            elif playing:
+                d.rectangle(row, outline=AMBER)
+            fg, dim = (BG, BG) if picked else (AMBER, AMBER) if playing else (GREEN, DIM)
+            text(img, 2, y0 + 4, ">" if playing and not picked else (f"{s['track']:>3}" if s["track"] else "  -"), dim)
+            text(img, 24, y0 + 4, clip(plain(s["title"]), 34), fg, upper=False)
+            text(img, LW - 4, y0 + 4, mins(s["secs"]), dim, align="r")
+        if not self.rows:
+            text(img, LW // 2, 70, "NO SONGS (USB STICK REMOVED?)", DIM, align="c")
+        more = self.top + self.ROWS < len(self.rows)
+        n = sum(1 for r in self.rows if r[0] == "song")
+        button(img, d, self.UP, "PAGE UP", GREEN if self.top else FAINT, self.lit("up"))
+        button(img, d, self.DOWN, f"PAGE DOWN {n} SONGS" if more else f"{n} SONGS",
+               GREEN if more else FAINT, self.lit("down"))
+
+
 # ---- Claude page ----
 
 NEW_BTN, MODE_BTN, ASK_BTN = (0, 134, 40, 159), (44, 134, 120, 159), (124, 134, LW - 1, 159)   # MODE: VOICE / TEXT
@@ -1702,10 +1944,11 @@ CARD = (14, LH - 47, LW - 15, LH - 8)
 def song_card(img, d, name, ui):
     """When the song changes while DRIVE or MAP shows: a small card with the new song for
     CARD_SECS. Changes seen on other pages (picked on MUSIC, say) don't pop one up later."""
-    p = getattr(ui, "player", None) if ui else None
+    music = getattr(ui, "music", None) if ui else None
+    p = music.active if music else (getattr(ui, "player", None) if ui else None)
     if p is None:
         return
-    seq = getattr(p, "song_seq", 0)
+    seq = (id(p), getattr(p, "song_seq", 0))
     now = time.monotonic()
     if getattr(ui, "_card_seq", None) is None:
         ui._card_seq, ui._card_until = seq, 0.0        # what was playing at start-up: no card
@@ -1791,6 +2034,7 @@ class UI(screens.Pressable):
         self.shutdown_armed = False        # finger came down on SHUT DOWN: show the countdown at once
         self._term_y = None                # TERM page: where the dragging finger was, in drawing pixels
         self.suggester = None              # suggest.Suggester: the MUSIC page's SUGGEST
+        self.music = None                  # localmusic.Music: Spotify or the USB stick (main sets it)
 
     def snapshot(self):
         return self.page, list(self.stack)
@@ -1911,10 +2155,12 @@ class UI(screens.Pressable):
                 self.shutdown_armed = True         # no page change; the hold does the rest
 
     def spotify_tap(self, x, y):
-        p = self.player
+        m = self.music
+        p = m.active if m else self.player
         if not p:
             return
-        for rect, name, act in ((PREV_BTN, "prev", p.previous), (PLAY_BTN, "play", p.toggle),
+        local = bool(m and p is m.local)
+        for rect, name, act in ((PREV_BTN, "prev", p.previous), (PLAY_BTN, "play", m.toggle if m else p.toggle),
                                 (SKIP_BTN, "skip", p.next), (SHUF_BTN, "shuf", p.toggle_shuffle)):
             if inside(rect, x, y):
                 self.press(name)
@@ -1922,13 +2168,27 @@ class UI(screens.Pressable):
                 return
         if inside(LISTS_BTN, x, y):
             self.press("lists")
-            self.stack.append(PlaylistScreen(p))
-        elif inside(SUGGEST_BTN, x, y) and self.suggester:
+            self.open_library()
+        elif inside(SUGGEST_BTN, x, y) and self.suggester and not local:
             self.press("suggest")
             self.suggester.suggest(p.item)
         elif p.item and p.show_heart and inside(HEART_TAP, x, y):
             self.press("heart")
             p.like()
+
+    def open_library(self):
+        """LIBRARY. With USB music on, it opens straight at the playing artist's songs
+        (BACK = their place in the artist list, BACK again = LIBRARY): changing songs is a tap."""
+        m = self.music
+        self.stack.append(PlaylistScreen(self.player, m))
+        if not (m and m.local and m.source == "local" and m.local.song):
+            return
+        lib, artist = m.local.library, m.local.song.get("artist")
+        i = next((n for n, a in enumerate(lib.artists) if a[0] == artist), None)
+        if i is not None:
+            rows = LocalArtistsScreen.ROWS
+            self.stack.append(LocalArtistsScreen(m, top=i // rows * rows))
+            self.stack.append(LocalArtistScreen(m, artist))
 
     def claude_tap(self, x, y):
         a = self.assistant
@@ -2002,6 +2262,11 @@ class UI(screens.Pressable):
             self._result(self.stack[-1].release(raw))
 
     def render(self):
+        if self.music:
+            try:
+                self.music.tick()
+            except Exception as e:             # never let it take the screen down
+                log(f"music: tick failed: {e!r}")
         fix = getattr(self.feed, "gps", None)
         if self.nav and fix is not self._nav_fix:  # keep guidance going whatever page shows
             self._nav_fix = fix
@@ -2284,12 +2549,21 @@ def main():
     router = bt.Router(log, player)      # AUX / Bluetooth stereo; AUX-only if Bluetooth fails
     ui = UI(feed, helper, player, term, router=router, navigator=nav.Navigator(speech),
             screen_settings=display_settings)
+    try:                                   # USB-stick music (MUSIC > LIBRARY); Spotify works without it
+        import localmusic
+        library = localmusic.Library(log=log, wake=wake)
+        ui.music = localmusic.Music(player, localmusic.LocalPlayer(library, wake, log), log, device=spotify.DEVICE)
+        router.local = ui.music.local
+    except Exception as e:
+        log(f"usb music unavailable: {e!r}")
     ui.keyboards = terminal.Keyboards(ui.key, log)
     ui.modem = cell.Modem(log)
     if helper:
         try:
             import speech as speech_out
-            helper.speaker = speech_out.Speaker(speech_out.MusicHold(player), wake=wake)
+            hold = speech_out.MusicHold(player)
+            hold.local = ui.music.local if ui.music else None
+            helper.speaker = speech_out.Speaker(hold, wake=wake)
             threading.Thread(target=helper.speaker.load, daemon=True).start()     # voice ready before the first answer
         except Exception as e:
             log(f"spoken answers unavailable: {e}")
@@ -2300,7 +2574,7 @@ def main():
         import mediakeys
         import suggest
         ui.suggester = suggest.Suggester(log, wake)
-        mediakeys.MediaKeys(player, log)   # the stereo's buttons (Bluetooth AVRCP) and media keys
+        mediakeys.MediaKeys(ui.music or player, log)   # the stereo's buttons (Bluetooth AVRCP) and media keys
     touch = Touch(wake)
     threading.Thread(target=watch_touch, args=(touch, log), daemon=True).start()
 
@@ -2338,7 +2612,8 @@ def main():
         else:
             fb.show(ui.render())
         busy = ui.stack or (helper and (helper.busy or helper.approval))
-        dancing = player and player.visible and player.playing and not ui.stack   # the visualiser
+        playing = (ui.music.active if ui.music else player) if player else None
+        dancing = player and player.visible and playing and playing.playing and not ui.stack   # the visualiser
         live = not ui.stack and PAGES[ui.page] in LIVE_PAGES
         period = 0.05 if held is not None or busy else 1 / LIVE_FPS if live or dancing else 1 / FPS
         wake.wait(max(0.0, period - (time.monotonic() - started)))   # frame time counts towards it

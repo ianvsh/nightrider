@@ -690,6 +690,8 @@ class Player:
         self._ended_id = None          # song whose end was already watched for
         self.song_seq = 0              # +1 each time the song changes (the DRIVE/MAP song card)
         self.song_changed_at = -1e9
+        self.before_play = None        # called before any play from Spotify's side (USB music pauses)
+        self.quiet = None              # -> True while USB music is on: no resuming Spotify by itself
         self._kick = threading.Event()
         self._lock = threading.Lock()
         threading.Thread(target=self._poll, daemon=True).start()
@@ -858,6 +860,8 @@ class Player:
     def _watch(self, fine):
         try:
             was_playing = time.monotonic() - self.played_at < 600
+            if self.quiet and self.quiet():                      # USB music on: don't bring Spotify back
+                was_playing = False
             if self.watchdog.check(fine) and was_playing:        # music stopped by the fault: bring it back
                 threading.Thread(target=self._resume, daemon=True).start()
         except Exception as e:                                   # never let the poll thread die
@@ -956,6 +960,11 @@ class Player:
         """Run a button's command in a thread. play = it starts music: if the player isn't
         ready yet, it's kept and done once it is (_play_wanted). Afterwards the cache is read
         fast until the change shows (follow="skip": if it never does, Spotify is asked)."""
+        if play and self.before_play:                   # USB music pauses first
+            try:
+                self.before_play()
+            except Exception as e:
+                self.log(f"spotify: before_play: {e!r}")
         if not self._lock.acquire(blocking=False):      # one command at a time
             return
         start = self._now_key()
@@ -995,6 +1004,15 @@ class Player:
             self._do("", play_now, play=True)          # (and plays once ready if it can't yet)
         else:
             self._do("", lambda: run("playback", "play-pause"), play=to_play)
+
+    def pause(self):
+        """Pause if playing here (USB music is starting). One CLI command, nothing else."""
+        if not self.playing:
+            return
+        self.state["progress_ms"] = self.progress
+        self.state["is_playing"] = False
+        self.at = time.monotonic()
+        self._do("", lambda: run("playback", "pause"))
 
     def next(self):
         if self.state:                                  # an early NEXT is a skip: note it for Claude

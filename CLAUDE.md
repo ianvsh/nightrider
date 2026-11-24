@@ -69,8 +69,8 @@ is the API spec, so keep it in sync with any API change. Install and setup:
 - Spotify page: `spotify.py` wraps the `spotify_player` CLI (`Player` polls
   playback every 2 s while the page shows, 15 s otherwise; buttons run in a
   thread). One button row at the bottom: prev / play-pause / next / SHUFFLE (filled
-  = on) / SUGGEST (queues 5 songs like this one, picked ahead by suggest.py) / LISTS
-  (playlists screen, liked songs first). Heart (right of the artist):
+  = on) / SUGGEST (queues 5 songs like this one, picked ahead by suggest.py) / LIBRARY
+  (USB music, liked songs, playlists). Heart (right of the artist):
   red = in Liked Songs, outline = not, dim = not known (offline); tap saves, never
   unsaves. Library calls use `me/library` (`is_liked`, `save_liked`): the older
   `me/tracks/contains` and `PUT me/tracks` answer 403 for this dev app (2026-10-16).
@@ -99,6 +99,22 @@ is the API spec, so keep it in sync with any API change. Install and setup:
   key (bulk GET /tracks?ids is 403; station URIs unsupported), so a "radio" is
   Claude picking ~25 similar songs -> `play_songs` (Web API with spotify_player's
   token). The CLI's queue is stale; read it from the Web API. Pixel font shows accented letters as plain ones (`plain_char`).
+- USB-stick music (`localmusic.py`, 2026-11-24): MUSIC > LIBRARY (was LISTS) > LOCALLY SAVED
+  MUSIC. `system/90-nightrider-usb.rules` mounts any USB stick READ-ONLY at `/media/usb-<uuid>`
+  (systemd-mount; unplug = unmounted). `Library` watches /proc/mounts every 5 s, indexes a new
+  stick in a niced subprocess (`localmusic.py scan <dir>`, mutagen tags, folders for untagged
+  files, only new/changed files after the first time) into `/var/lib/nightrider/music.db`, and
+  browses from memory (artists A-Z with "The" ignored and accents folded, # last; albums oldest
+  first). `LocalPlayer` = one mpg123 -R kept running, playing to ALSA "localbus" (Loopback 0,3);
+  `bt.Bridge` mixes 1,3 in with Spotify and the voice (a broken channel drops out alone). Own
+  queue + shuffle (saved in `~/.config/nightrider/local-music.json` with the last song). `Music`
+  picks which player the MUSIC page / stereo buttons / voice hold control: starting the stick
+  pauses Spotify (one CLI pause, `Player.pause`), any Spotify play (`Player.before_play`) or
+  Spotify starting by itself pauses the stick; `Player.quiet` stops the Watchdog resuming Spotify
+  over it. Screens: `LocalArtistsScreen` (A-Z -> `LetterScreen`, SHUFFLE = whole stick),
+  `LocalArtistScreen` (songs under album headers; tap song = artist from there, tap album name =
+  album). With USB music on, LIBRARY opens straight at the playing artist. SUGGEST is Spotify-only.
+  Revert point: git tag `before-local-music`.
 - Music taste (`taste.py`): Claude's `music_taste` tool (read / remember / forget,
   no approval). Read = saved likes/dislikes/notes (`~/.config/nightrider/music-taste.json`,
   Claude saves what the driver says), hearts (`music-likes.jsonl`, screen or Claude; the

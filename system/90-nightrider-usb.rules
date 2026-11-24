@@ -1,0 +1,13 @@
+# Nightrider: USB sticks (music) are mounted READ-ONLY at /media/usb-<uuid>, where
+# localmusic.py looks for them. Read-only so a car's power cut can't damage the stick.
+# systemd-mount ties the mount to the device: pulling the stick out unmounts it.
+ACTION!="add", GOTO="nightrider_usb_end"
+SUBSYSTEM!="block", GOTO="nightrider_usb_end"
+ENV{ID_BUS}!="usb", GOTO="nightrider_usb_end"
+ENV{ID_FS_USAGE}!="filesystem", GOTO="nightrider_usb_end"
+ENV{ID_FS_UUID}!="?*", GOTO="nightrider_usb_end"
+ENV{ID_FS_TYPE}=="vfat", RUN{program}+="/usr/bin/systemd-mount --no-block --collect -t vfat -o ro,noatime,nodev,nosuid,noexec,utf8,shortname=mixed $devnode /media/usb-$env{ID_FS_UUID}"
+ENV{ID_FS_TYPE}=="exfat", RUN{program}+="/usr/bin/systemd-mount --no-block --collect -t exfat -o ro,noatime,nodev,nosuid,noexec,iocharset=utf8 $devnode /media/usb-$env{ID_FS_UUID}"
+ENV{ID_FS_TYPE}=="ntfs", RUN{program}+="/usr/bin/systemd-mount --no-block --collect -t ntfs3 -o ro,noatime,nodev,nosuid,noexec $devnode /media/usb-$env{ID_FS_UUID}"
+ENV{ID_FS_TYPE}=="ext4|ext3|ext2|hfsplus", RUN{program}+="/usr/bin/systemd-mount --no-block --collect -o ro,noatime,nodev,nosuid,noexec $devnode /media/usb-$env{ID_FS_UUID}"
+LABEL="nightrider_usb_end"
