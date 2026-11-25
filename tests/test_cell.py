@@ -158,6 +158,21 @@ class StereoGoneTest(unittest.TestCase):
                 r._step()
             self.assertEqual(self.calls, [("switch", "bluetooth", True)])     # was playing: carries on
 
+    def test_connected_without_audio_asks_for_audio(self):
+        import bt
+        r = self.router()
+        r._tried = 0.0
+        asked, pcm = [], [None]
+        r.bt.connect_audio = lambda mac: (asked.append(mac), pcm.__setitem__(0, "/pcm"))
+        r.log = lambda m: None
+        with mock.patch.object(bt, "bt_pcm", lambda: pcm[0]), mock.patch.object(bt, "fix_rate", lambda p: False), \
+                mock.patch.object(bt.time, "monotonic", lambda: 100.0), mock.patch.object(r, "_follow_quality", lambda: None), \
+                mock.patch.object(bt.time, "sleep", lambda s: None):
+            r._step()                                    # Connected, but no audio PCM
+        self.assertEqual(asked, ["AA"])
+        self.assertEqual(r.route, "bluetooth")
+        self.assertNotIn(("pause",), self.calls)
+
     def test_quality_follows_the_link(self):
         import bt
         r = self.router()

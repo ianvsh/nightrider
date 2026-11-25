@@ -239,6 +239,23 @@ class Bluetooth:
     def connect(self, mac):
         self._wait(self._path(mac), "Connect", timeout=30)
 
+    def connect_audio(self, mac):
+        """Just the audio (A2DP sink) on a stereo that's already connected: it sometimes
+        lets the Pi on but refuses the audio (2026-11-24: "Connection refused", silent)."""
+        path = self._path(mac)
+        done, out = threading.Event(), []
+
+        def start():
+            self._iface(path, "org.bluez.Device1").ConnectProfile(
+                A2DP_SINK, reply_handler=lambda: done.set(),
+                error_handler=lambda e: (out.append(e), done.set()), timeout=30)
+            return False
+        GLib.idle_add(start)
+        if not done.wait(35):
+            raise RuntimeError("STEREO DIDN'T ANSWER")
+        if out:
+            raise out[0]
+
     def forget(self, mac):
         try:
             self._iface(self.adapter_path, "org.bluez.Adapter1").RemoveDevice(self._path(mac))
@@ -494,6 +511,20 @@ class Router:
                 time.sleep(0.5)
             else:
                 up = False
+                # connected but no audio: ask for just the audio, every RETRY s
+                if want_bt and time.monotonic() - self._tried > RETRY:
+                    self._tried = time.monotonic()
+                    try:
+                        self.bt.connect_audio(s["stereo"])
+                        self.log(f"bluetooth: {s['name']} was on without audio: asked for audio")
+                        for _ in range(10):
+                            pcm = bt_pcm()
+                            if pcm:
+                                break
+                            time.sleep(0.5)
+                        up = bool(pcm)
+                    except Exception:
+                        pass                   # refused again: try again later
         route = "bluetooth" if up else "aux"
         lost = bool(want_bt and not up)        # BLUETOOTH chosen, stereo gone: AUX, but paused
         # The sample-rate check talks to bluealsa (GetCodecs) on the stereo's link, so only
