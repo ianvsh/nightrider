@@ -1266,7 +1266,8 @@ def page_spotify(img, d, ui):
     icon_button(d, PREV_BTN, "prev", GREEN, lit("prev"))
     icon_button(d, PLAY_BTN, "pause" if p.playing else "play", GREEN, lit("play"))
     icon_button(d, SKIP_BTN, "next", GREEN, lit("skip"))
-    button(img, d, SHUF_BTN, "SHUFFLE", GREEN, p.shuffle != lit("shuf"))   # filled = shuffle on
+    button(img, d, SHUF_BTN, getattr(p, "shuffle_label", "SHUFFLE"), GREEN,
+           p.shuffle != lit("shuf"))                     # filled = shuffle on (USB: SHUF ART / SHUF ALB too)
     sug = ui.suggester if not local else None              # SUGGEST is Spotify's
     button(img, d, SUGGEST_BTN, "SUGGEST", GREEN if sug else FAINT,
            lit("suggest") or bool(sug and sug.busy))   # filled while the picks finish
@@ -1671,9 +1672,10 @@ class LetterScreen(screens.Pressable):
 
 class LocalArtistScreen(screens.Pressable):
     """One artist's songs, album by album (oldest first): an album's name heads its songs.
-    Tap a song = it plays and the artist's songs carry on after it (the whole stick shuffled
-    if the USB music's SHUFFLE is on); tap an album's name = the album from its first song;
-    SHUFFLE = the whole stick shuffled, starting with this artist. Opens on the playing song's page."""
+    Tap a song = it plays and what follows depends on the USB music's shuffle setting (OFF:
+    the artist's songs in order; SHUFFLE / SHUF ART / SHUF ALB: the stick / this artist /
+    the song's album, shuffled); tap an album's name = the album from its first song;
+    SHUFFLE = this artist shuffled (SHUF ART). Opens on the playing song's page."""
     BACK = (0, 0, 56, 18)
     SHUFFLE = (LW - 70, 0, LW - 1, 18)
     UP = (0, 138, 116, 159)
@@ -1709,9 +1711,8 @@ class LocalArtistScreen(screens.Pressable):
             return None
         if inside(self.SHUFFLE, x, y) and self.rows:
             self.press("shuffle")
-            self.music.local.shuffle = True
-            songs = self.music.local._context_songs(["artist", self.artist])
-            self.music.play_local(["artist", self.artist], random.choice(songs) if songs else None)
+            self.music.local.mode = "artist"
+            self.music.play_local(["artist", self.artist])
             return "done"
         if inside(self.UP, x, y):
             self.press("up")

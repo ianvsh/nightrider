@@ -11,8 +11,9 @@ LOCALLY SAVED MUSIC).
   ("localbus" in /etc/asound.conf), which the audio bridge (bt.Bridge) mixes with Spotify
   and the voice. A new song is one line to mpg123: no process starts, nothing waits.
   Its shuffle is its own: Spotify's shuffle setting doesn't touch it, and vice versa.
-  Shuffle is always the whole stick (not just the artist or album): turning it off goes
-  back to the artist / album the song was picked from.
+  Shuffle has four settings (MUSIC's SHUFFLE button steps through them): OFF, SHUFFLE
+  (the whole stick), SHUF ART (the playing song's artist), SHUF ALB (its album). OFF goes
+  back to the artist / album the song was picked from, in order.
 - Music: which of the two the MUSIC page, the stereo's buttons and the voice control.
   Starting one pauses the other.
 """
@@ -30,6 +31,8 @@ import unicodedata
 MEDIA = "/media"
 MOUNT_PREFIX = "usb-"                       # the udev rule's mount points: /media/usb-<uuid>
 MUSIC_DB = "/var/lib/nightrider/music.db"
+SHUFFLE_MODES = ("off", "all", "artist", "album")     # USB music's SHUFFLE button steps through these
+SHUFFLE_LABELS = {"off": "SHUFFLE", "all": "SHUFFLE", "artist": "SHUF ART", "album": "SHUF ALB"}
 STATE = os.path.expanduser("~/.config/nightrider/local-music.json")
 OUT = "localbus"                            # ALSA PCM: Loopback 0,3 (bridge reads 1,3)
 EXTS = (".mp3",)
@@ -337,9 +340,10 @@ class LocalPlayer:
         self.state_path = state_path
         self.cmd = cmd or ["mpg123", "-R", "-o", "alsa", "-a", out]
         st = _load_state(state_path)
-        self.shuffle = bool(st.get("shuffle"))
+        mode = st.get("shuffle_mode")
+        self.mode = mode if mode in SHUFFLE_MODES else ("all" if st.get("shuffle") else "off")
         self.context = st.get("context")       # ["all"] / ["artist", name] / ["album", artist, album]
-        self.home = st.get("home")             # the artist / album picked, while shuffle plays everything
+        self.home = st.get("home")             # what was picked (played in order when shuffle is off)
         self._resume_path = st.get("path")     # last song, until the library has it again
         self._resume_at = float(st.get("at") or 0)
         self.queue = []                        # songs in context order
@@ -355,6 +359,31 @@ class LocalPlayer:
         self._proc = None
         self._lock = threading.Lock()
         self._gen = 0                          # bumped per load: a stale "song ended" is ignored
+
+    # -- shuffle --
+
+    @property
+    def shuffle(self):
+        return self.mode != "off"
+
+    @shuffle.setter
+    def shuffle(self, on):                     # True = the whole stick (LIBRARY's SHUFFLE)
+        self.mode = "all" if on else "off"
+
+    @property
+    def shuffle_label(self):
+        return SHUFFLE_LABELS[self.mode]
+
+    def _scope(self, song):
+        """The context to play for the shuffle setting, around a song."""
+        if self.mode == "off":
+            return list(self.home or ["all"])
+        if self.mode == "all" or not song:
+            return ["all"]
+        if self.mode == "artist":
+            return ["artist", song["artist"]]
+        if self.mode == "album":
+            return ["album", song["artist"], song["album"]]
 
     # -- what the MUSIC page shows --
 
@@ -460,7 +489,7 @@ class LocalPlayer:
 
     def _save(self):
         st = _load_state(self.state_path)          # (keeps Music's "source")
-        st.update({"shuffle": self.shuffle, "context": self.context, "home": self.home,
+        st.update({"shuffle": self.shuffle, "shuffle_mode": self.mode, "context": self.context, "home": self.home,
                    "path": (self.song or {}).get("path"), "at": round(self.progress / 1000, 1)})
         _save_state(st, self.state_path)
 
@@ -490,27 +519,29 @@ class LocalPlayer:
     def play(self, context, first=None):
         """Play from a context (["all"], ["artist", a], ["album", a, album]); first = index in it
         of the song to start with (None = the start, or a random one when shuffling).
-        Shuffling plays the whole stick: the artist / album is kept (home) for SHUFFLE off."""
+        What carries on after it follows the shuffle setting (_scope); the context picked is
+        kept (home) for when shuffle goes off."""
         songs = self._context_songs(context)
         if not songs:
             self.error = "NO SONGS FOUND"
             self._changed()
             return
-        if context[0] == "all":
-            self.home = None
-        elif self.shuffle:
-            self.home = list(context)
-            pick = songs[max(0, min(first, len(songs) - 1))]["path"] if first is not None else None
-            context, songs = ["all"], self._context_songs(["all"])
-            if pick is not None:
-                first = next((n for n, s in enumerate(songs) if s["path"] == pick), 0)
-        else:
-            self.home = None
-        self.context, self.queue = list(context), songs
         if first is None:
             first = random.randrange(len(songs)) if self.shuffle else 0
-        self._make_order(max(0, min(first, len(songs) - 1)))
+        pick = songs[max(0, min(first, len(songs) - 1))]
+        self.home = list(context)
+        self._requeue(self._scope(pick), pick)
         self._load(self.queue[self.order[self.pos]])
+
+    def _requeue(self, context, song):
+        """Queue = context's songs, play order made around song (first, if shuffling)."""
+        songs = self._context_songs(context) or [song]
+        self.context, self.queue = list(context), songs
+        cur = next((n for n, x in enumerate(songs) if x["path"] == song["path"]), None)
+        if cur is None:                                # (song not in it: put it first)
+            self.queue = songs = [song] + songs
+            cur = 0
+        self._make_order(cur)
 
     def play_song(self, context, song):
         songs = self._context_songs(context)
@@ -593,22 +624,16 @@ class LocalPlayer:
             self._advance(-1)
 
     def toggle_shuffle(self):
-        """On: the whole stick, shuffled, after the song playing. Off: back to the artist /
-        album it was picked from (if any), carrying on in order from the song playing."""
+        """Next shuffle setting: OFF -> SHUFFLE (whole stick) -> SHUF ART -> SHUF ALB -> OFF.
+        The song playing carries on; what comes after it follows the new setting."""
         self._restore()
-        self.shuffle = not self.shuffle
-        if self.queue and self.order:
-            path = self.queue[self.order[self.pos]]["path"]
-            if self.shuffle and self.context and self.context[0] != "all":
-                self.home, self.context = list(self.context), ["all"]
-            elif not self.shuffle and self.home:
-                songs = self._context_songs(self.home)
-                if any(s["path"] == path for s in songs):
-                    self.context = self.home
-                self.home = None
-            self.queue = self._context_songs(self.context) or self.queue
-            cur = next((n for n, s in enumerate(self.queue) if s["path"] == path), 0)
-            self._make_order(cur)
+        self.mode = SHUFFLE_MODES[(SHUFFLE_MODES.index(self.mode) + 1) % len(SHUFFLE_MODES)]
+        song = self.queue[self.order[self.pos]] if self.queue and self.order else self.song
+        if song:
+            ctx = self._scope(song)
+            if self.mode == "off" and not any(x["path"] == song["path"] for x in self._context_songs(ctx)):
+                ctx = ["all"]                          # (picked list doesn't have it: the stick, in order)
+            self._requeue(ctx, song)
         self._changed()
         self._save()
 

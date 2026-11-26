@@ -173,30 +173,61 @@ class PlayerTest(unittest.TestCase):
             p.next()
             seen.add(p.title)
         self.assertEqual(len(seen), 10)        # every song once before any repeats
-        p.toggle_shuffle()
+        for _ in range(3):                     # SHUF ART, SHUF ALB, OFF
+            p.toggle_shuffle()
+        self.assertEqual(p.mode, "off")
         cur = p.title
         p.next()
         names = [s["title"] for s in self.lib.all_songs()]
         self.assertEqual(names.index(p.title), (names.index(cur) + 1) % 10)
 
-    def test_shuffle_plays_the_whole_stick_and_off_goes_back_to_the_artist(self):
+    def test_shuffle_steps_off_all_artist_album_off(self):
+        d = self.tmp.name
+        rows = []
+        for a, al in (("Aa", "X"), ("Aa", "Y"), ("Bb", "Z")):
+            for t in range(1, 4):
+                pth = f"{d}/{a}{al}{t}.mp3"
+                open(pth, "w").close()
+                rows.append(song(a, al, t, f"{a}{al}{t}", path=pth))
         p = self.p
-        p.play(["artist", "Aa"], 1)
-        p.toggle_shuffle()
-        self.assertEqual((p.title, p.context, p.home), ("Aa2", ["all"], ["artist", "Aa"]))
-        seen = {p.title}
-        for _ in range(9):
-            p.next()
-            seen.add(p.title)
-        self.assertEqual(len(seen), 10)        # the whole stick, not just Aa
+        p.library = lib = lib_of(rows)
+        p.play(["artist", "Aa"], 1)                       # AaX2, picked from Aa's songs
+        self.assertEqual((p.mode, p.shuffle_label, p.title), ("off", "SHUFFLE", "AaX2"))
+
+        def after(n=12):
+            out = []
+            for _ in range(n):
+                p.next()
+                out.append(p.song)
+            return out
+        p.toggle_shuffle()                                # SHUFFLE: the whole stick
+        self.assertEqual((p.mode, p.shuffle, p.context, p.title), ("all", True, ["all"], "AaX2"))
+        self.assertEqual(len({s["title"] for s in after(8)} | {"AaX2"}), 9)
+        p.toggle_shuffle()                                # SHUF ART: the playing song's artist
+        art = p.artist
+        self.assertEqual((p.mode, p.shuffle_label, p.context), ("artist", "SHUF ART", ["artist", art]))
+        self.assertEqual({s["artist"] for s in after()}, {art})
+        p.toggle_shuffle()                                # SHUF ALB: its album
+        art, alb = p.artist, p.album
+        self.assertEqual((p.mode, p.shuffle_label, p.context), ("album", "SHUF ALB", ["album", art, alb]))
+        self.assertEqual({(s["artist"], s["album"]) for s in after()}, {(art, alb)})
+        p.toggle_shuffle(); p.toggle_shuffle()            # OFF, SHUFFLE: the whole stick again
         while p.artist != "Aa":
             p.next()
         cur = p.title
-        p.toggle_shuffle()
-        self.assertEqual((p.context, p.home), (["artist", "Aa"], None))
-        aa = [s["title"] for s in self.lib.songs["Aa"]]
+        p.toggle_shuffle(); p.toggle_shuffle(); p.toggle_shuffle()      # SHUF ART, SHUF ALB, OFF
+        self.assertEqual((p.context, p.shuffle), (["artist", "Aa"], False))   # back to what was picked, in order
+        aa = [s["title"] for s in lib.songs["Aa"]]
         p.next()
         self.assertEqual(p.title, aa[(aa.index(cur) + 1) % len(aa)])
+        st = localmusic._load_state(self.state)
+        self.assertEqual(st["shuffle_mode"], "off")
+
+    def test_shuffle_setting_survives_a_restart(self):
+        self.p.play(["all"], 0)
+        self.p.toggle_shuffle(); self.p.toggle_shuffle()  # SHUF ART
+        q = localmusic.LocalPlayer(self.lib, log=lambda *a: None, state_path=self.state)
+        self.assertEqual(q.mode, "artist")
 
     def test_picking_a_song_while_shuffling_shuffles_everything_after_it(self):
         p = self.p
@@ -448,9 +479,7 @@ class ScreensTest(unittest.TestCase):
         self.assertEqual((self.local.context, self.local.title), (["album", "ABBA", "Second"], "ABBA song 3"))
         ui.stack[:] = [D.LocalArtistScreen(ui.music, "ABBA")]
         ui.tap((D.LW - 20, 8))
-        self.assertEqual((self.local.context, self.local.home, self.local.shuffle, ui.stack),
-                         (["all"], ["artist", "ABBA"], True, []))
-        self.assertEqual(self.local.artist, "ABBA")          # starts with the artist, then everything
+        self.assertEqual((self.local.context, self.local.mode, ui.stack), (["artist", "ABBA"], "artist", []))
 
     def test_music_page_and_drive_card_for_usb_music(self):
         D, ui = self.display, self.ui
